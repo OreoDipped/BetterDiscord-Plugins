@@ -1,61 +1,70 @@
-import {createPlugin, Finder, Utils, React} from "discordium";
-import config from "./config.json";
+import { createPlugin, createSettings, Logger, Finder, Patcher, Utils, React } from "dium";
+import { Platforms, PlatformType } from "@dium/modules";
 
-const Platforms = Finder.byProps("getPlatform", "isWindows", "isWeb", "PlatformTypes");
-const {PlatformTypes} = Platforms;
-const Overlay = Finder.byProps("initialize", "isSupported", "getFocusedPID");
+const { PlatformTypes: PlatformType } = Platforms;
+const OverlayBridgeStore = Finder.byName("OverlayBridgeStore");
 
 const RadioGroup = Finder.byName("RadioGroup");
 
-const settings = {
-    platform: /^win/.test(Platforms.platfrom) ? PlatformTypes.WINDOWS
-        : Platforms.platform === "darwin" ? PlatformTypes.OSX
-            : Platforms.platform === "linux" ? PlatformTypes.LINUX
-                : PlatformTypes.WEB
+const Settings = createSettings({
+    platform: null, // TODO: get platform
+});
+
+const notify = (message: string, options: Utils.ToastOptions) => {
+    Logger.log(message);
+    Utils.toast(message, options);
 };
 
-export default createPlugin({...config, settings}, ({Logger, Patcher, Settings}) => {
-    const notify = (message: string, options: Utils.ToastOptions) => {
-        Logger.log(message);
-        Utils.toast(message, options);
-    };
+const triggerRerender = async () => {
+    // TODO: force update root & trigger helmet rerender
+};
 
-    const triggerRerender = async () => {
-        // TODO: force update root & trigger helmet rerender
-    };
+const changePlatform = async (platform: any) => {
+    Settings.update({ platform });
+    await triggerRerender();
+    const platformName = Platforms.isWindows()
+        ? "Windows"
+        : Platforms.isOSX()
+          ? "MacOS"
+          : Platforms.isLinux()
+            ? "Linux"
+            : "Browser";
+    notify(`Emulating ${platformName}`, { type: Utils.ToastType.Info, timeout: 5000 });
+};
 
-    const changePlatform = async (platform: any) => {
-        Settings.set({platform});
+export default createPlugin({
+    start() {
+        // patch platform specific getters
+        for (const platform of ["Windows", "OSX", "Linux", "Web"] as const) {
+            Patcher.instead(
+                Platforms,
+                `is${platform}`,
+                () => Settings.current.platform === PlatformType[platform.toUpperCase() as PlatformType],
+            );
+        }
+
+        // patch overlay requirement
+        Patcher.instead(OverlayBridgeStore, "isSupported", () => Platforms.isWindows());
+    },
+    async stop() {
         await triggerRerender();
-        const platformName = Platforms.isWindows() ? "Windows" : Platforms.isOSX() ? "MacOS" : Platforms.isLinux() ? "Linux" : "Browser";
-        notify(`Emulating ${platformName}`, {type: Utils.ToastType.Info, timeout: 5000});
-    };
+        notify("Stopped emulating", { type: Utils.ToastType.Info, timeout: 5000 });
+    },
+    Settings,
+    SettingsPanel: () => {
+        const { platform } = Settings.useCurrent();
 
-    return {
-        start() {
-            // patch platform specific getters
-            for (const platform of ["Windows", "OSX", "Linux", "Web"]) {
-                Patcher.instead(Platforms, `is${platform}`, () => Settings.get().platform === PlatformTypes[platform.toUpperCase()]);
-            }
-
-            // patch overlay requirement
-            Patcher.instead(Overlay, "isSupported", () => Platforms.isWindows());
-        },
-        async stop() {
-            await triggerRerender();
-            notify("Stopped emulating", {type: Utils.ToastType.Info, timeout: 5000});
-        },
-        settingsPanel: ({platform}) => (
+        return (
             <RadioGroup
                 value={platform}
-                onChange={({value}) => changePlatform(value)}
+                onChange={({ value }: { value: any }) => changePlatform(value)}
                 options={[
-                    {value: PlatformTypes.WINDOWS, name: "Windows"},
-                    {value: PlatformTypes.OSX, name: "MacOS"},
-                    {value: PlatformTypes.LINUX, name: "Linux"},
-                    {value: PlatformTypes.WEB, name: "Browser"}
+                    { value: PlatformType.WINDOWS, name: "Windows" },
+                    { value: PlatformType.OSX, name: "MacOS" },
+                    { value: PlatformType.LINUX, name: "Linux" },
+                    { value: PlatformType.WEB, name: "Browser" },
                 ]}
             />
-        )
-    };
+        );
+    },
 });

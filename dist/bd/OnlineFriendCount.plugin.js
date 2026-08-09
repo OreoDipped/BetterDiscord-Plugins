@@ -1,12 +1,11 @@
 /**
  * @name OnlineFriendCount
+ * @version 3.3.2
  * @author Zerthox
- * @version 2.0.0
- * @description Add the old online friend count back to guild list. Because nostalgia.
  * @authorLink https://github.com/Zerthox
+ * @description Adds the old online friend count and similar counters back to server list. Because nostalgia.
  * @website https://github.com/Zerthox/BetterDiscord-Plugins
  * @source https://github.com/Zerthox/BetterDiscord-Plugins/tree/master/src/OnlineFriendCount
- * @updateUrl https://raw.githubusercontent.com/Zerthox/BetterDiscord-Plugins/master/dist/bd/OnlineFriendCount.plugin.js
 **/
 
 /*@cc_on @if (@_jscript)
@@ -16,7 +15,7 @@ shell.Popup(
     "Do NOT run scripts from the internet with the Windows Script Host!\nMove this file to your BetterDiscord plugins folder.",
     0,
     pluginName + ": Warning!",
-    0x1030
+    0x1030,
 );
 var fso = new ActiveXObject("Scripting.FileSystemObject");
 var pluginsPath = shell.expandEnvironmentStrings("%appdata%\\BetterDiscord\\plugins");
@@ -25,25 +24,20 @@ if (!fso.FolderExists(pluginsPath)) {
         "Unable to find BetterDiscord on your computer.\nOpen the download page of BetterDiscord?",
         0,
         pluginName + ": BetterDiscord not found",
-        0x34
+        0x34,
     );
     if (popup === 6) {
-        shell.Exec("explorer \"https://betterdiscord.app\"");
+        shell.Exec('explorer "https://betterdiscord.app"');
     }
 } else if (WScript.ScriptFullName === pluginsPath + "\\" + WScript.ScriptName) {
     shell.Popup(
-        "This plugin is already in the correct folder.\nNavigate to the \"Plugins\" settings tab in Discord and enable it there.",
+        'This plugin is already in the correct folder.\nNavigate to the "Plugins" settings tab in Discord and enable it there.',
         0,
         pluginName,
-        0x40
+        0x40,
     );
 } else {
-    var popup = shell.Popup(
-        "Open the BetterDiscord plugins folder?",
-        0,
-        pluginName,
-        0x34
-    );
+    var popup = shell.Popup("Open the BetterDiscord plugins folder?", 0, pluginName, 0x34);
     if (popup === 6) {
         shell.Exec("explorer " + pluginsPath);
     }
@@ -53,181 +47,283 @@ WScript.Quit();
 
 'use strict';
 
-let webpackRequire;
-global.webpackJsonp.push([
-    [],
-    {
-        __discordium__: (_module, _exports, require) => {
-            webpackRequire = require;
-        }
-    },
-    [["__discordium__"]]
-]);
-delete webpackRequire.m.__discordium__;
-delete webpackRequire.c.__discordium__;
-const joinFilters = (filters) => {
-    return (module) => {
-        const { exports } = module;
-        return filters.every((filter) => filter(exports, module) || (exports?.__esModule && filter(exports?.default, module)));
-    };
-};
-const filters = {
-    byExports(exported) {
-        return (target) => target === exported || (target instanceof Object && Object.values(target).includes(exported));
-    },
-    byName(name) {
-        return (target) => target instanceof Object && Object.values(target).some(filters.byDisplayName(name));
-    },
-    byDisplayName(name) {
-        return (target) => target?.displayName === name || target?.constructor?.displayName === name;
-    },
-    byProps(props) {
-        return (target) => target instanceof Object && props.every((prop) => prop in target);
-    },
-    byProtos(protos) {
-        return (target) => target instanceof Object && target.prototype instanceof Object && protos.every((proto) => proto in target.prototype);
-    },
-    bySource(contents) {
-        return (target) => target instanceof Function && contents.every((content) => target.toString().includes(content));
+let meta;
+const getMeta = () => {
+    if (meta) {
+        return meta;
+    }
+    else {
+        throw Error("Accessing meta before initialization");
     }
 };
-const genFilters = ({ filter, name, props, protos, source }) => [
-    ...[filter].flat(),
-    typeof name === "string" ? filters.byName(name) : null,
-    props instanceof Array ? filters.byProps(props) : null,
-    protos instanceof Array ? filters.byProtos(protos) : null,
-    source instanceof Array ? filters.bySource(source) : null
-].filter((entry) => entry instanceof Function);
-const raw = {
-    require: webpackRequire,
-    getAll: () => Object.values(webpackRequire.c),
-    find: (...filters) => raw.getAll().find(joinFilters(filters)) ?? null,
-    query: (options) => raw.find(...genFilters(options)),
-    byId: (id) => webpackRequire.c[id] ?? null,
-    byExports: (exported) => raw.find(filters.byExports(exported)),
-    byName: (name) => raw.find(filters.byName(name)),
-    byProps: (...props) => raw.find(filters.byProps(props)),
-    byProtos: (...protos) => raw.find(filters.byProtos(protos)),
-    bySource: (...contents) => raw.find(filters.bySource(contents)),
-    all: {
-        find: (...filters) => raw.getAll().filter(joinFilters(filters)),
-        query: (options) => raw.all.find(...genFilters(options)),
-        byExports: (exported) => raw.all.find(filters.byExports(exported)),
-        byName: (name) => raw.all.find(filters.byName(name)),
-        byProps: (...props) => raw.all.find(filters.byProps(props)),
-        byProtos: (...protos) => raw.all.find(filters.byProtos(protos)),
-        bySource: (...contents) => raw.all.find(filters.bySource(contents))
-    },
-    resolveExports(module, filter = null) {
-        if (module instanceof Object && "exports" in module) {
-            const exported = module.exports;
-            if (!exported) {
-                return exported;
-            }
-            if (typeof filter === "string") {
-                return exported[filter];
-            }
-            else if (filter instanceof Function) {
-                const result = Object.values(exported).find((value) => filter(value));
-                if (result !== undefined) {
-                    return result;
-                }
-            }
-            if (exported.__esModule && "default" in exported && Object.keys(exported).length === 1) {
-                return exported.default;
-            }
-            else {
-                return exported;
-            }
+const setMeta = (newMeta) => {
+    meta = newMeta;
+};
+
+const load = (key) => BdApi.Data.load(getMeta().name, key);
+const save = (key, value) => BdApi.Data.save(getMeta().name, key, value);
+
+const checkObjectValues = (target) => target !== window && target instanceof Object && target.constructor?.prototype !== target;
+const byName$1 = (name) => {
+    return (target) => (target?.displayName ?? target?.constructor?.displayName) === name;
+};
+const byKeys$1 = (...keys) => {
+    return (target) => target instanceof Object && keys.every((key) => key in target);
+};
+const byProtos = (...protos) => {
+    return (target) => target instanceof Object
+        && target.prototype instanceof Object
+        && protos.every((proto) => proto in target.prototype);
+};
+const bySource$1 = (...fragments) => {
+    return (target) => {
+        while (target instanceof Object && "$$typeof" in target) {
+            target = target.render ?? target.type;
         }
-        return null;
-    },
-    resolveImports(module) {
-        const source = webpackRequire.m[module.id].toString();
-        const match = source.match(/^(?:function)?\s*\(\w+,\w+,(\w+)\)\s*(?:=>)?\s*{/);
-        if (match) {
-            const requireName = match[1];
-            const calls = Array.from(source.matchAll(new RegExp(`\\W${requireName}\\((\\d+)\\)`, "g")));
-            return calls.map((call) => raw.byId(call[1]));
+        if (target instanceof Function) {
+            const source = target.toString();
+            const renderSource = target.prototype?.render?.toString();
+            return fragments.every((fragment) => typeof fragment === "string"
+                ? source.includes(fragment) || renderSource?.includes(fragment)
+                : fragment(source) || (renderSource && fragment(renderSource)));
         }
         else {
-            return [];
+            return false;
         }
-    },
-    resolveStyles: (module) => raw.resolveImports(module).filter((imported) => (imported instanceof Object
-        && "exports" in imported
-        && Object.values(imported.exports).every((value) => typeof value === "string")
-        && Object.entries(imported.exports).find(([key, value]) => (new RegExp(`^${key}-([a-zA-Z0-9-_]){6}(\\s.+)$`)).test(value))))
+    };
 };
-const Finder = {
-    raw,
-    getAll: () => raw.getAll().map((entry) => raw.resolveExports(entry)),
-    find: (...filters) => raw.resolveExports(raw.find(...filters)),
-    query: (options) => raw.resolveExports(raw.query(options), options.export),
-    byId: (id) => raw.resolveExports(raw.byId(id)),
-    byExports: (exported) => raw.resolveExports(raw.byExports(exported)),
-    byName: (name) => raw.resolveExports(raw.byName(name), filters.byDisplayName(name)),
-    byProps: (...props) => raw.resolveExports(raw.byProps(...props), filters.byProps(props)),
-    byProtos: (...protos) => raw.resolveExports(raw.byProtos(...protos), filters.byProtos(protos)),
-    bySource: (...contents) => raw.resolveExports(raw.bySource(...contents), filters.bySource(contents)),
-    resolveImports: (exported) => raw.resolveImports(raw.byExports(exported)).map((entry) => raw.resolveExports(entry)),
-    resolveStyles: (exported) => raw.resolveStyles(raw.byExports(exported)).map((entry) => raw.resolveExports(entry)),
-    all: {
-        find: (...filters) => raw.all.find(...filters).map((entry) => raw.resolveExports(entry)),
-        query: (options) => raw.all.query(options).map((entry) => raw.resolveExports(entry, options.export)),
-        byExports: (exported) => raw.all.byExports(exported).map((entry) => raw.resolveExports(entry)),
-        byName: (name) => raw.all.byName(name).map((entry) => raw.resolveExports(entry, filters.byDisplayName(name))),
-        byProps: (...props) => raw.all.byProps(...props).map((entry) => raw.resolveExports(entry, filters.byProps(props))),
-        byProtos: (...protos) => raw.all.byProtos(...protos).map((entry) => raw.resolveExports(entry, filters.byProtos(protos))),
-        bySource: (...contents) => raw.all.bySource(...contents).map((entry) => raw.resolveExports(entry, filters.bySource(contents)))
+
+const confirm = (title, content, options = {}) => BdApi.UI.showConfirmationModal(title, content, options);
+const mappedProxy = (target, mapping) => {
+    const map = new Map(Object.entries(mapping));
+    return new Proxy(target, {
+        get(target, prop) {
+            return target[map.get(prop) ?? prop];
+        },
+        set(target, prop, value) {
+            target[map.get(prop) ?? prop] = value;
+            return true;
+        },
+        deleteProperty(target, prop) {
+            delete target[map.get(prop) ?? prop];
+            map.delete(prop);
+            return true;
+        },
+        has(target, prop) {
+            return map.has(prop) || prop in target;
+        },
+        ownKeys() {
+            return [...map.keys(), ...Object.keys(target)];
+        },
+        getOwnPropertyDescriptor(target, prop) {
+            return Object.getOwnPropertyDescriptor(target, map.get(prop) ?? prop);
+        },
+        defineProperty(target, prop, attributes) {
+            Object.defineProperty(target, map.get(prop) ?? prop, attributes);
+            return true;
+        },
+    });
+};
+
+const find = (filter, { resolve = true, entries = false } = {}) => BdApi.Webpack.getModule(filter, {
+    defaultExport: resolve,
+    searchExports: entries,
+});
+const byName = (name, options) => find(byName$1(name), options);
+const byKeys = (keys, options) => find(byKeys$1(...keys), options);
+const bySource = (contents, options) => find(bySource$1(...contents), options);
+const demangle = (mapping, required, proxy = false) => {
+    const req = required ?? Object.keys(mapping);
+    const found = find((target) => checkObjectValues(target)
+        && req.every((req) => Object.values(target).some((value) => mapping[req](value))));
+    return proxy
+        ? mappedProxy(found, Object.fromEntries(Object.entries(mapping).map(([key, filter]) => [
+            key,
+            Object.entries(found ?? {}).find(([, value]) => filter(value))?.[0],
+        ])))
+        : Object.fromEntries(Object.entries(mapping).map(([key, filter]) => [
+            key,
+            Object.values(found ?? {}).find((value) => filter(value)),
+        ]));
+};
+let controller = new AbortController();
+const abort = () => {
+    controller.abort();
+    controller = new AbortController();
+};
+
+const COLOR = "#3a71c1";
+const print = (output, ...data) => output(`%c[${getMeta().name}] %c${getMeta().version ? `(v${getMeta().version})` : ""}`, `color: ${COLOR}; font-weight: 700;`, "color: #666; font-size: .8em;", ...data);
+const log = (...data) => print(console.log, ...data);
+const warn = (...data) => print(console.warn, ...data);
+const error = (...data) => print(console.error, ...data);
+
+let manualPatches = [];
+const addManual = (cancel, name) => {
+    manualPatches.push(cancel);
+};
+const patch = (type, object, method, callback, options) => {
+    const original = object?.[method];
+    const name = options.name ?? String(method);
+    if (!(original instanceof Function)) {
+        if (options.force && !original) {
+            warn(`Forcing patch on ${name}`);
+            object[method] = function noop() { };
+            addManual(() => {
+                object[method] = original;
+            });
+        }
+        else {
+            throw TypeError(`patch target ${name} is ${original} not function`);
+        }
+    }
+    const cancel = BdApi.Patcher[type](getMeta().name, object, method, options.once
+        ? (context, args, result) => {
+            const newResult = callback({ cancel, original, context, args, result });
+            cancel();
+            return newResult;
+        }
+        : (context, args, result) => callback({ cancel, original, context, args, result }));
+    if (!options.silent) {
+        log(`Patched ${name}`);
+    }
+    return cancel;
+};
+const instead = (object, method, callback, options = {}) => patch("instead", object, method, callback, options);
+const after = (object, method, callback, options = {}) => patch("after", object, method, callback, options);
+const unpatchAll = () => {
+    if (manualPatches.length + BdApi.Patcher.getPatchesByCaller(getMeta().name).length > 0) {
+        BdApi.Patcher.unpatchAll(getMeta().name);
+        for (const cancel of manualPatches) {
+            cancel();
+        }
+        manualPatches = [];
+        log("Unpatched all");
     }
 };
 
-Finder.byProps("subscribe", "emit");
-const React = Finder.byProps("createElement", "Component", "Fragment");
-const ReactDOM = Finder.byProps("render", "findDOMNode", "createPortal");
-const classNames = Finder.find((exports) => exports instanceof Object && exports.default === exports && Object.keys(exports).length === 1);
-Finder.byProps("cloneDeep", "flattenDeep");
-Finder.byProps("valid", "satifies");
-Finder.byProps("utc", "months");
-Finder.byProps("parseBlock", "parseInline");
-Finder.byProps("highlight", "highlightBlock");
-Finder.byProps("captureBreadcrumb");
-Finder.byProps("assert", "validate", "object");
-const Flux = Finder.query({ props: ["Store", "connectStores"], export: "default" });
-const Dispatcher = Finder.query({ props: ["Dispatcher"], export: "Dispatcher" });
-Finder.byProps("languages", "getLocale");
-
-React?.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-const [getInstanceFromNode, getNodeFromInstance, getFiberCurrentPropsFromNode, enqueueStateRestore, restoreStateIfNeeded, batchedUpdates] = ReactDOM?.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.Events;
-const ReactDOMInternals = {
-    getInstanceFromNode,
-    getNodeFromInstance,
-    getFiberCurrentPropsFromNode,
-    enqueueStateRestore,
-    restoreStateIfNeeded,
-    batchedUpdates
+const inject = (styles) => {
+    if (typeof styles === "string") {
+        BdApi.DOM.addStyle(getMeta().name, styles);
+    }
 };
+const clear = () => BdApi.DOM.removeStyle(getMeta().name);
 
-const confirm = (title, content, options = {}) => BdApi.showConfirmationModal(title, content, options);
-const getFiber = (node) => ReactDOMInternals.getInstanceFromNode(node ?? {});
-const queryFiber = (fiber, predicate, direction = "up", depth = 30, current = 0) => {
-    if (current > depth) {
+const { useStateFromStores, } = /* @__PURE__ */ demangle({
+    default: byKeys$1("Store", "connectStores"),
+    Dispatcher: byProtos("dispatch"),
+    Store: byProtos("emitChange"),
+    BatchedStoreListener: byProtos("attach", "detach"),
+    useStateFromStores: bySource$1("useStateFromStores"),
+}, ["Store", "Dispatcher", "useStateFromStores"]);
+
+const GuildStore = /* @__PURE__ */ byName("GuildStore");
+
+const { React } = BdApi;
+const classNames = /* @__PURE__ */ find((exports$1) => exports$1 instanceof Object && exports$1.default === exports$1 && Object.keys(exports$1).length === 1);
+
+const PresenceStore = /* @__PURE__ */ byName("PresenceStore");
+const RelationshipStore = /* @__PURE__ */ byName("RelationshipStore");
+
+const Button = /* @__PURE__ */ byKeys(["Colors", "Link"], { entries: true });
+
+const Flex = /* @__PURE__ */ byKeys(["Child", "Justify", "Align"], { entries: true });
+
+const FormDivider = /* @__PURE__ */ bySource(["marginTop:", (source) => /{className:.,gap:.}=/.test(source)], {
+    entries: true,
+});
+
+const GuildsNav = /* @__PURE__ */ bySource(["guildsnav"], { entries: true });
+
+const mapping = {
+    Link: bySource$1(".component", ".to"),
+    BrowserRouter: bySource$1("this.history"),
+};
+const { Link} = /* @__PURE__ */ demangle(mapping, [
+    "Link",
+    "BrowserRouter",
+]);
+
+const { Menu, Group: MenuGroup, CheckboxItem: MenuCheckboxItem} = BdApi.ContextMenu;
+
+const EMPTY = Symbol();
+const useOnceRef = (init) => {
+    const ref = React.useRef(EMPTY);
+    if (ref.current === EMPTY) {
+        ref.current = init();
+    }
+    return ref;
+};
+const FCHook = ({ children: { type, props }, callback }) => {
+    const result = type(props);
+    return callback(result, props) ?? result;
+};
+const hookFunctionComponent = (target, callback) => {
+    const props = {
+        children: { ...target },
+        callback,
+    };
+    target.props = props;
+    target.type = FCHook;
+    return target;
+};
+const queryTree = (node, predicate) => {
+    const worklist = [node].flat();
+    while (worklist.length !== 0) {
+        const node = worklist.shift();
+        if (React.isValidElement(node)) {
+            if (predicate(node)) {
+                return node;
+            }
+            const children = node?.props?.children;
+            if (children) {
+                worklist.push(...[children].flat());
+            }
+        }
+    }
+    return null;
+};
+const queryTreeForParent = (tree, predicate) => {
+    let childIndex = -1;
+    const parent = queryTree(tree, (node) => {
+        const children = node?.props?.children;
+        if (children instanceof Array) {
+            const index = children.findIndex(predicate);
+            if (index > -1) {
+                childIndex = index;
+                return true;
+            }
+        }
+        return false;
+    });
+    return [parent, childIndex];
+};
+const getFiber = (node) => {
+    const key = Object.keys(node).find((key) => key.startsWith("__reactFiber"));
+    return node?.[key];
+};
+const queryFiber = (fiber, predicate, direction = "up" , depth = 30) => {
+    if (depth < 0) {
         return null;
     }
     if (predicate(fiber)) {
         return fiber;
     }
-    if ((direction === "up" || direction === "both") && fiber.return) {
-        const result = queryFiber(fiber.return, predicate, "up", depth, current + 1);
-        if (result) {
-            return result;
+    if (direction === "up"  || direction === "both" ) {
+        let count = 0;
+        let parent = fiber.return;
+        while (parent && count < depth) {
+            if (predicate(parent)) {
+                return parent;
+            }
+            count++;
+            parent = parent.return;
         }
     }
-    if ((direction === "down" || direction === "both") && fiber.child) {
+    if (direction === "down"  || direction === "both" ) {
         let child = fiber.child;
         while (child) {
-            const result = queryFiber(child, predicate, "down", depth, current + 1);
+            const result = queryFiber(child, predicate, "down" , depth - 1);
             if (result) {
                 return result;
             }
@@ -236,218 +332,255 @@ const queryFiber = (fiber, predicate, direction = "up", depth = 30, current = 0)
     }
     return null;
 };
-const findOwner = (fiber) => {
-    return queryFiber(fiber, (node) => node?.stateNode instanceof React.Component, "up", 50);
+const findOwner = (fiber, depth = 50) => {
+    return queryFiber(fiber, (node) => node?.stateNode instanceof React.Component, "up" , depth);
 };
-
-const createLogger = (name, color, version) => {
-    const print = (output, ...data) => output(`%c[${name}] %c${version ? `(v${version})` : ""}`, `color: ${color}; font-weight: 700;`, "color: #666; font-size: .8em;", ...data);
-    return {
-        print,
-        log: (...data) => print(console.log, ...data),
-        warn: (...data) => print(console.warn, ...data),
-        error: (...data) => print(console.error, ...data)
-    };
-};
-
-const createPatcher = (id, Logger) => {
-    const forward = (patcher, object, method, callback, options) => {
-        const original = object[method];
-        const cancel = patcher(id, object, method, (context, args, result) => {
-            const temp = callback({ cancel, original, context, args, result });
-            if (options.once) {
-                cancel();
-            }
-            return temp;
-        }, { silent: true });
-        if (!options.silent) {
-            const target = method === "default" ? object[method] : {};
-            const name = options.name ?? object.displayName ?? object.constructor?.displayName ?? target.displayName ?? "unknown";
-            Logger.log(`Patched ${method} of ${name}`);
-        }
-        return cancel;
-    };
-    const { Patcher } = BdApi;
-    const instead = (object, method, callback, options = {}) => forward(Patcher.instead, object, method, ({ result: _, ...data }) => callback(data), options);
-    const before = (object, method, callback, options = {}) => forward(Patcher.before, object, method, ({ result: _, ...data }) => callback(data), options);
-    const after = (object, method, callback, options = {}) => forward(Patcher.after, object, method, callback, options);
-    return {
-        instead,
-        before,
-        after,
-        unpatchAll: () => {
-            Patcher.unpatchAll(id);
-            Logger.log("Unpatched all");
-        },
-        forceRerender: (fiber) => new Promise((resolve) => {
-            const owner = findOwner(fiber);
-            if (owner) {
-                const { stateNode } = owner;
-                after(stateNode, "render", () => null, { once: true });
-                stateNode.forceUpdate(() => stateNode.forceUpdate(() => resolve(true)));
-            }
-            else {
-                resolve(false);
-            }
-        })
-    };
-};
-
-const createStyles = (id) => {
-    return {
-        inject(styles) {
-            if (typeof styles === "string") {
-                BdApi.injectCSS(id, styles);
-            }
-        },
-        clear: () => BdApi.clearCSS(id)
-    };
-};
-
-const createData = (id) => ({
-    load: (key) => BdApi.loadData(id, key) ?? null,
-    save: (key, value) => BdApi.saveData(id, key, value),
-    delete: (key) => BdApi.deleteData(id, key)
+const forceFullRerender = (fiber) => new Promise((resolve) => {
+    const owner = findOwner(fiber);
+    if (owner) {
+        const { stateNode } = owner;
+        instead(stateNode, "render", () => null, { once: true, silent: true });
+        stateNode.forceUpdate(() => stateNode.forceUpdate(() => resolve(true)));
+    }
+    else {
+        resolve(false);
+    }
 });
 
-class Settings extends Flux.Store {
-    constructor(Data, defaults) {
-        super(new Dispatcher(), {
-            update: ({ current }) => Data.save("settings", current)
-        });
-        this.listeners = new Set();
+const SettingsContainer = ({ name, children, onReset }) => (React.createElement("div", null,
+    children,
+    onReset ? (React.createElement(React.Fragment, null,
+        React.createElement(FormDivider, { gap: 20 }),
+        React.createElement(Flex, { justify: Flex.Justify.END },
+            React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => confirm(name, "Reset all settings?", {
+                    onConfirm: onReset,
+                }) }, "Reset")))) : null));
+
+class SettingsStore {
+    defaults;
+    current;
+    onLoad;
+    listeners = new Set();
+    constructor(defaults, onLoad) {
         this.defaults = defaults;
-        this.current = Data.load("settings") ?? { ...defaults };
+        this.current = { ...defaults };
+        this.onLoad = onLoad;
     }
-    get() {
-        return { ...this.current };
+    load() {
+        this.current = { ...this.defaults, ...load("settings") };
+        this.onLoad?.();
+        this._dispatch(false);
     }
-    set(settings) {
-        Object.assign(this.current, settings instanceof Function ? settings(this.get()) : settings);
-        this._dispatcher.dispatch({ type: "update", current: this.current });
+    _dispatch(save$1) {
+        for (const listener of this.listeners) {
+            listener(this.current);
+        }
+        if (save$1) {
+            save("settings", this.current);
+        }
     }
+    getCurrent = () => this.current;
+    update = (settings) => {
+        const update = typeof settings === "function" ? settings(this.current) : settings;
+        this.current = { ...this.current, ...update };
+        this._dispatch(true);
+    };
     reset() {
-        this.set({ ...this.defaults });
+        this.current = { ...this.defaults };
+        this._dispatch(true);
     }
-    connect(component) {
-        return Flux.connectStores([this], () => ({ ...this.get(), defaults: this.defaults, set: (settings) => this.set(settings) }))(component);
+    delete(...keys) {
+        this.current = { ...this.current };
+        for (const key of keys) {
+            delete this.current[key];
+        }
+        this._dispatch(true);
+    }
+    useCurrent() {
+        return React.useSyncExternalStore(this.addListenerEffect, this.getCurrent);
+    }
+    useSelector(selector, deps, compare = Object.is) {
+        const state = useOnceRef(() => selector(this.current));
+        const snapshot = React.useCallback(() => {
+            const next = selector(this.current);
+            if (!compare(state.current, next)) {
+                state.current = next;
+            }
+            return state.current;
+        }, deps ?? [selector]);
+        return React.useSyncExternalStore(this.addListenerEffect, snapshot);
+    }
+    useState() {
+        const current = this.useCurrent();
+        return [current, this.update];
+    }
+    useStateWithDefaults() {
+        const current = this.useCurrent();
+        return [current, this.defaults, this.update];
+    }
+    useListener(listener, deps) {
+        React.useEffect(() => this.addListenerEffect(listener), deps ?? [listener]);
     }
     addListener(listener) {
         this.listeners.add(listener);
-        this._dispatcher.subscribe("update", listener);
         return listener;
     }
+    addListenerEffect = (listener) => {
+        this.addListener(listener);
+        return () => this.removeListener(listener);
+    };
     removeListener(listener) {
-        if (this.listeners.has(listener)) {
-            this._dispatcher.unsubscribe("update", listener);
-            this.listeners.delete(listener);
-        }
+        this.listeners.delete(listener);
     }
     removeAllListeners() {
-        for (const listener of this.listeners) {
-            this._dispatcher.unsubscribe("update", listener);
-        }
         this.listeners.clear();
     }
+    addReactChangeListener = this.addListener;
+    removeReactChangeListener = this.removeListener;
 }
-const createSettings = (Data, defaults) => new Settings(Data, defaults);
+const createSettings = (defaults, onLoad) => new SettingsStore(defaults, onLoad);
 
-const Flex = Finder.byName("Flex");
-const Button = Finder.byProps("Link", "Hovers");
-const Form = Finder.byProps("FormItem", "FormSection", "FormDivider");
-const margins = Finder.byProps("marginLarge");
-
-const createPlugin = ({ name, version, styles: css, settings }, callback) => {
-    const Logger = createLogger(name, "#3a71c1", version);
-    const Patcher = createPatcher(name, Logger);
-    const Styles = createStyles(name);
-    const Data = createData(name);
-    const Settings = createSettings(Data, settings ?? {});
-    const plugin = callback({ Logger, Patcher, Styles, Data, Settings });
-    function Wrapper() { }
-    Wrapper.prototype.start = () => {
-        Logger.log("Enabled");
-        Styles.inject(css);
-        plugin.start();
-    };
-    Wrapper.prototype.stop = () => {
-        Patcher.unpatchAll();
-        Styles.clear();
-        const promise = plugin.stop();
-        if (promise) {
-            promise.then(() => Logger.log("Disabled"));
-        }
-        else {
-            Logger.log("Disabled");
-        }
-    };
-    if (plugin.settingsPanel) {
-        const ConnectedSettings = Settings.connect(plugin.settingsPanel);
-        Wrapper.prototype.getSettingsPanel = () => (React.createElement(Form.FormSection, null,
-            React.createElement(ConnectedSettings, null),
-            React.createElement(Form.FormDivider, { className: classNames(margins.marginTop20, margins.marginBottom20) }),
-            React.createElement(Flex, { justify: Flex.Justify.END },
-                React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => confirm(name, "Reset all settings?", {
-                        onConfirm: () => Settings.reset()
-                    }) }, "Reset"))));
-    }
-    return Wrapper;
-};
-
-const name = "OnlineFriendCount";
-const author = "Zerthox";
-const version = "2.0.0";
-const description = "Add the old online friend count back to guild list. Because nostalgia.";
-const config = {
-	name: name,
-	author: author,
-	version: version,
-	description: description
-};
-
-const styles = ".friendsOnline-2JkivW {\n  color: var(--channels-default);\n  text-align: center;\n  text-transform: uppercase;\n  font-size: 10px;\n  font-weight: 500;\n  line-height: 1.3;\n  width: 70px;\n  word-wrap: normal;\n  white-space: nowrap;\n  cursor: pointer;\n}\n.friendsOnline-2JkivW:hover {\n  color: var(--interactive-hover);\n}";
-
-const Constants = Finder.byProps("Permissions", "RelationshipTypes");
-const Status = Finder.byProps("getState", "getStatus", "isMobileOnline");
-const Relationships = Finder.byProps("isFriend", "getRelationshipCount");
-const HomeButton = Finder.byProps("HomeButton");
-const { Link } = Finder.byProps("Link", "NavLink") ?? {};
-const guildStyles = Finder.byProps("guilds", "base");
-const listStyles = Finder.byProps("listItem");
-const friendsOnline = "friendsOnline-2JkivW";
-const OnlineCount = ({ online }) => (React.createElement("div", { className: listStyles.listItem },
-    React.createElement(Link, { to: { pathname: "/channels/@me" } },
-        React.createElement("div", { className: friendsOnline },
-            online,
-            " Online"))));
-const ConnectedOnlineCount = Flux.connectStores([Status, Relationships], () => {
-    const { RelationshipTypes, StatusTypes } = Constants;
-    const filtered = Object.entries(Relationships.getRelationships())
-        .filter(([id, type]) => type === RelationshipTypes.FRIEND && Status.getStatus(id) !== StatusTypes.OFFLINE);
-    return { online: filtered.length };
-})(OnlineCount);
-const index = createPlugin({ ...config, styles }, ({ Logger, Patcher }) => {
-    const triggerRerender = async () => {
-        const node = document.getElementsByClassName(guildStyles.guilds)?.[0];
-        const fiber = getFiber(node);
-        if (await Patcher.forceRerender(fiber)) {
-            Logger.log("Rerendered guilds");
-        }
-        else {
-            Logger.warn("Unable to rerender guilds");
-        }
-    };
+const createPlugin = (plugin) => (meta) => {
+    setMeta(meta);
+    const { start, stop, styles, Settings, SettingsPanel } = plugin instanceof Function ? plugin(meta) : plugin;
+    Settings?.load();
     return {
         start() {
-            Patcher.instead(HomeButton, "HomeButton", ({ original: HomeButton, args: [props] }) => (React.createElement(React.Fragment, null,
-                React.createElement(HomeButton, { ...props }),
-                React.createElement(ConnectedOnlineCount, null))));
-            triggerRerender();
+            log("Enabled");
+            inject(styles);
+            start?.();
         },
         stop() {
-            triggerRerender();
-        }
+            abort();
+            unpatchAll();
+            clear();
+            stop?.();
+            log("Disabled");
+        },
+        getSettingsPanel: SettingsPanel
+            ? () => (React.createElement(SettingsContainer, { name: meta.name, onReset: Settings ? () => Settings.reset() : undefined },
+                React.createElement(SettingsPanel, null)))
+            : undefined,
     };
+};
+
+const Settings = createSettings({
+    guilds: false,
+    friends: false,
+    friendsOnline: true,
+    pending: false,
+    blocked: false,
+    interval: false,
+});
+const counterLabels = {
+    guilds: {
+        label: "Servers",
+    },
+    friends: {
+        label: "Friends",
+    },
+    friendsOnline: {
+        label: "Online",
+        long: "Online Friends",
+    },
+    pending: {
+        label: "Pending",
+        long: "Pending Friend Requests",
+    },
+    blocked: {
+        label: "Blocked",
+        long: "Blocked Users",
+    },
+};
+
+const CountContextMenu = (props) => {
+    const [settings, setSettings] = Settings.useState();
+    return (React.createElement(Menu, { ...props },
+        React.createElement(MenuGroup, null, Object.entries(counterLabels).map(([id, { label, long }]) => (React.createElement(MenuCheckboxItem, { key: id, id: id, label: long ?? label, checked: settings[id], action: () => setSettings({ [id]: !settings[id] }) })))),
+        React.createElement(MenuGroup, null,
+            React.createElement(MenuCheckboxItem, { id: "interval", label: "Auto rotate", checked: settings.interval, action: () => setSettings({ interval: !settings.interval }) }))));
+};
+
+const css = ".item-OnlineFriendCount{color:var(--channels-default);text-align:center;text-transform:uppercase;font-size:10px;font-weight:500;line-height:1.3;width:70px;word-wrap:normal;white-space:nowrap}.link-OnlineFriendCount{cursor:pointer}.link-OnlineFriendCount:hover{color:var(--interactive-text-hover)}";
+const styles = {
+    item: "item-OnlineFriendCount",
+    link: "link-OnlineFriendCount"
+};
+
+const listStyles = byKeys(["listItem", "iconBadge"]);
+const Item = ({ children, className, link }) => (React.createElement("div", { className: listStyles.listItem }, link ? (React.createElement(Link, { to: link, className: classNames(styles.item, styles.link, className) }, children)) : (React.createElement("div", { className: classNames(styles.link, className) }, children))));
+const CounterItem = ({ type, count }) => (React.createElement(Item, { link: "/channels/@me", className: classNames(styles.counter, styles[type]) },
+    count,
+    " ",
+    counterLabels[type].label));
+const useCounters = () => useStateFromStores([GuildStore, PresenceStore, RelationshipStore], () => [
+    { type: "guilds" , count: GuildStore.getGuildCount() },
+    { type: "friends" , count: RelationshipStore.getFriendCount() },
+    {
+        type: "friendsOnline" ,
+        count: RelationshipStore.getFriendIDs().filter((id) => PresenceStore.getStatus(id) !== "offline" )
+            .length,
+    },
+    { type: "pending" , count: RelationshipStore.getPendingCount() },
+    { type: "blocked" , count: RelationshipStore.getBlockedIDs().length },
+]);
+const CountersContainer = () => {
+    const { interval, ...settings } = Settings.useCurrent();
+    const counters = useCounters().filter(({ type }) => settings[type]);
+    const [current, setCurrent] = React.useState(0);
+    const next = React.useRef((current + 1) % counters.length);
+    React.useEffect(() => {
+        next.current = (current + 1) % counters.length;
+    }, [current, counters.length]);
+    React.useEffect(() => {
+        if (interval && counters.length > 1) {
+            setCurrent(0);
+            const id = setInterval(() => setCurrent(next.current), 5000);
+            return () => clearInterval(id);
+        }
+    }, [interval, counters.length]);
+    return (React.createElement("div", { className: styles.container, onContextMenu: (event) => BdApi.ContextMenu.open(event, CountContextMenu) }, counters.length > 0 ? (interval ? (React.createElement(CounterItem, { ...counters[current] })) : (counters.map((counter) => React.createElement(CounterItem, { key: counter.type, ...counter })))) : (React.createElement(Item, null, "-"))));
+};
+
+const guildStyles = byKeys(["guilds", "base"]);
+const triggerRerender = async () => {
+    const node = document.getElementsByClassName(guildStyles.guilds)?.[0];
+    const fiber = getFiber(node);
+    if (await forceFullRerender(fiber)) {
+        log("Rerendered guilds");
+    }
+    else {
+        warn("Unable to rerender guilds");
+    }
+};
+const index = createPlugin({
+    start() {
+        after(GuildsNav, "type", ({ result }) => {
+            const guildsParent = queryTree(result, (node) => node?.props?.className?.split(" ").includes(guildStyles.guilds));
+            if (!guildsParent) {
+                return error("Unable to find guilds parent");
+            }
+            hookFunctionComponent(guildsParent, (result) => {
+                const themeParent = queryTree(result, (node) => typeof node?.props?.children === "function");
+                if (!themeParent) {
+                    return error("Unable to find theme parent");
+                }
+                hookFunctionComponent(themeParent, (result) => {
+                    const [scroller, index] = queryTreeForParent(result, (child) => child?.props?.lurkingGuildIds);
+                    if (!scroller) {
+                        return error("Unable to find home button wrapper");
+                    }
+                    scroller.props.children.splice(index + 1, 0, React.createElement(CountersContainer, null));
+                });
+            });
+        }, { name: "GuildsNav" });
+        triggerRerender();
+    },
+    stop() {
+        triggerRerender();
+    },
+    styles: css,
+    Settings,
 });
 
 module.exports = index;

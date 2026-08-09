@@ -1,14 +1,12 @@
 /**
  * @name VoiceEvents
+ * @version 2.8.6
  * @author Zerthox
- * @version 2.0.1
- * @description Add TTS Event Notifications to your selected Voice Channel. TeamSpeak feeling.
  * @authorLink https://github.com/Zerthox
+ * @description Adds TTS Event Notifications to your selected Voice Channel. TeamSpeak feeling.
  * @website https://github.com/Zerthox/BetterDiscord-Plugins
  * @source https://github.com/Zerthox/BetterDiscord-Plugins/tree/master/src/VoiceEvents
- * @updateUrl https://raw.githubusercontent.com/Zerthox/BetterDiscord-Plugins/master/dist/bd/VoiceEvents.plugin.js
 **/
-
 /*@cc_on @if (@_jscript)
 var pluginName = WScript.ScriptName.split(".")[0];
 var shell = WScript.CreateObject("WScript.Shell");
@@ -16,7 +14,7 @@ shell.Popup(
     "Do NOT run scripts from the internet with the Windows Script Host!\nMove this file to your BetterDiscord plugins folder.",
     0,
     pluginName + ": Warning!",
-    0x1030
+    0x1030,
 );
 var fso = new ActiveXObject("Scripting.FileSystemObject");
 var pluginsPath = shell.expandEnvironmentStrings("%appdata%\\BetterDiscord\\plugins");
@@ -25,25 +23,20 @@ if (!fso.FolderExists(pluginsPath)) {
         "Unable to find BetterDiscord on your computer.\nOpen the download page of BetterDiscord?",
         0,
         pluginName + ": BetterDiscord not found",
-        0x34
+        0x34,
     );
     if (popup === 6) {
-        shell.Exec("explorer \"https://betterdiscord.app\"");
+        shell.Exec('explorer "https://betterdiscord.app"');
     }
 } else if (WScript.ScriptFullName === pluginsPath + "\\" + WScript.ScriptName) {
     shell.Popup(
-        "This plugin is already in the correct folder.\nNavigate to the \"Plugins\" settings tab in Discord and enable it there.",
+        'This plugin is already in the correct folder.\nNavigate to the "Plugins" settings tab in Discord and enable it there.',
         0,
         pluginName,
-        0x40
+        0x40,
     );
 } else {
-    var popup = shell.Popup(
-        "Open the BetterDiscord plugins folder?",
-        0,
-        pluginName,
-        0x34
-    );
+    var popup = shell.Popup("Open the BetterDiscord plugins folder?", 0, pluginName, 0x34);
     if (popup === 6) {
         shell.Exec("explorer " + pluginsPath);
     }
@@ -53,552 +46,588 @@ WScript.Quit();
 
 'use strict';
 
-let webpackRequire;
-global.webpackJsonp.push([
-    [],
-    {
-        __discordium__: (_module, _exports, require) => {
-            webpackRequire = require;
-        }
-    },
-    [["__discordium__"]]
-]);
-delete webpackRequire.m.__discordium__;
-delete webpackRequire.c.__discordium__;
-const joinFilters = (filters) => {
-    return (module) => {
-        const { exports } = module;
-        return filters.every((filter) => filter(exports, module) || (exports?.__esModule && filter(exports?.default, module)));
-    };
-};
-const filters = {
-    byExports(exported) {
-        return (target) => target === exported || (target instanceof Object && Object.values(target).includes(exported));
-    },
-    byName(name) {
-        return (target) => target instanceof Object && Object.values(target).some(filters.byDisplayName(name));
-    },
-    byDisplayName(name) {
-        return (target) => target?.displayName === name || target?.constructor?.displayName === name;
-    },
-    byProps(props) {
-        return (target) => target instanceof Object && props.every((prop) => prop in target);
-    },
-    byProtos(protos) {
-        return (target) => target instanceof Object && target.prototype instanceof Object && protos.every((proto) => proto in target.prototype);
-    },
-    bySource(contents) {
-        return (target) => target instanceof Function && contents.every((content) => target.toString().includes(content));
+let meta;
+const getMeta = () => {
+    if (meta) {
+        return meta;
+    }
+    else {
+        throw Error("Accessing meta before initialization");
     }
 };
-const genFilters = ({ filter, name, props, protos, source }) => [
-    ...[filter].flat(),
-    typeof name === "string" ? filters.byName(name) : null,
-    props instanceof Array ? filters.byProps(props) : null,
-    protos instanceof Array ? filters.byProtos(protos) : null,
-    source instanceof Array ? filters.bySource(source) : null
-].filter((entry) => entry instanceof Function);
-const raw = {
-    require: webpackRequire,
-    getAll: () => Object.values(webpackRequire.c),
-    getSources: () => Object.values(webpackRequire.m),
-    getSource: (id) => webpackRequire.m[id] ?? null,
-    find: (...filters) => raw.getAll().find(joinFilters(filters)) ?? null,
-    query: (options) => raw.find(...genFilters(options)),
-    byId: (id) => webpackRequire.c[id] ?? null,
-    byExports: (exported) => raw.find(filters.byExports(exported)),
-    byName: (name) => raw.find(filters.byName(name)),
-    byProps: (...props) => raw.find(filters.byProps(props)),
-    byProtos: (...protos) => raw.find(filters.byProtos(protos)),
-    bySource: (...contents) => raw.find(filters.bySource(contents)),
-    all: {
-        find: (...filters) => raw.getAll().filter(joinFilters(filters)),
-        query: (options) => raw.all.find(...genFilters(options)),
-        byExports: (exported) => raw.all.find(filters.byExports(exported)),
-        byName: (name) => raw.all.find(filters.byName(name)),
-        byProps: (...props) => raw.all.find(filters.byProps(props)),
-        byProtos: (...protos) => raw.all.find(filters.byProtos(protos)),
-        bySource: (...contents) => raw.all.find(filters.bySource(contents))
-    },
-    resolveExports(module, filter = null) {
-        if (module instanceof Object && "exports" in module) {
-            const exported = module.exports;
-            if (!exported) {
-                return exported;
-            }
-            if (typeof filter === "string") {
-                return exported[filter];
-            }
-            else if (filter instanceof Function) {
-                const result = Object.values(exported).find((value) => filter(value));
-                if (result !== undefined) {
-                    return result;
-                }
-            }
-            if (exported.__esModule && "default" in exported && Object.keys(exported).length === 1) {
-                return exported.default;
-            }
-            else {
-                return exported;
-            }
+const setMeta = (newMeta) => {
+    meta = newMeta;
+};
+
+const load = (key) => BdApi.Data.load(getMeta().name, key);
+const save = (key, value) => BdApi.Data.save(getMeta().name, key, value);
+
+const byName$1 = (name) => {
+    return (target) => (target?.displayName ?? target?.constructor?.displayName) === name;
+};
+const byKeys$1 = (...keys) => {
+    return (target) => target instanceof Object && keys.every((key) => key in target);
+};
+const bySource$1 = (...fragments) => {
+    return (target) => {
+        while (target instanceof Object && "$$typeof" in target) {
+            target = target.render ?? target.type;
         }
-        return null;
-    },
-    resolveImportIds(module) {
-        const source = webpackRequire.m[module.id].toString();
-        const match = source.match(/^(?:function)?\s*\(\w+,\w+,(\w+)\)\s*(?:=>)?\s*{/);
-        if (match) {
-            const requireName = match[1];
-            const calls = Array.from(source.matchAll(new RegExp(`\\W${requireName}\\((\\d+)\\)`, "g")));
-            return calls.map((call) => parseInt(call[1]));
+        if (target instanceof Function) {
+            const source = target.toString();
+            const renderSource = target.prototype?.render?.toString();
+            return fragments.every((fragment) => typeof fragment === "string"
+                ? source.includes(fragment) || renderSource?.includes(fragment)
+                : fragment(source) || (renderSource && fragment(renderSource)));
         }
         else {
-            return [];
+            return false;
         }
-    },
-    resolveImports: (module) => raw.resolveImportIds(module).map((id) => raw.byId(id)),
-    resolveStyles: (module) => raw.resolveImports(module).filter((imported) => (imported instanceof Object
-        && "exports" in imported
-        && Object.values(imported.exports).every((value) => typeof value === "string")
-        && Object.entries(imported.exports).find(([key, value]) => (new RegExp(`^${key}-([a-zA-Z0-9-_]){6}(\\s.+)$`)).test(value)))),
-    resolveUsers: (module) => raw.all.find((_, user) => raw.resolveImportIds(user).includes(module.id))
+    };
 };
-const find = (...filters) => raw.resolveExports(raw.find(...filters));
-const query = (options) => raw.resolveExports(raw.query(options), options.export);
-const byName = (name) => raw.resolveExports(raw.byName(name), filters.byDisplayName(name));
-const byProps = (...props) => raw.resolveExports(raw.byProps(...props), filters.byProps(props));
 
-byProps("subscribe", "emit");
-const React = byProps("createElement", "Component", "Fragment");
-const ReactDOM = byProps("render", "findDOMNode", "createPortal");
-const classNames = find((exports) => exports instanceof Object && exports.default === exports && Object.keys(exports).length === 1);
-byProps("cloneDeep", "flattenDeep");
-byProps("valid", "satifies");
-byProps("utc", "months");
-byProps("parseBlock", "parseInline");
-byProps("highlight", "highlightBlock");
-byProps("captureBreadcrumb");
-byProps("assert", "validate", "object");
-const Flux = query({ props: ["Store", "connectStores"], export: "default" });
-const Dispatcher = query({ props: ["Dispatcher"], export: "Dispatcher" });
-byProps("languages", "getLocale");
+const alert = (title, content) => BdApi.UI.alert(title, content);
+const confirm = (title, content, options = {}) => BdApi.UI.showConfirmationModal(title, content, options);
 
-React?.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-ReactDOM?.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.Events;
+const find = (filter, { resolve = true, entries = false } = {}) => BdApi.Webpack.getModule(filter, {
+    defaultExport: resolve,
+    searchExports: entries,
+});
+const byName = (name, options) => find(byName$1(name), options);
+const byKeys = (keys, options) => find(byKeys$1(...keys), options);
+const bySource = (contents, options) => find(bySource$1(...contents), options);
+let controller = new AbortController();
+const abort = () => {
+    controller.abort();
+    controller = new AbortController();
+};
 
-const alert = (title, content) => BdApi.alert(title, content);
-const confirm = (title, content, options = {}) => BdApi.showConfirmationModal(title, content, options);
-const queryFiber = (fiber, predicate, direction = "up", depth = 30, current = 0) => {
-    if (current > depth) {
-        return null;
-    }
-    if (predicate(fiber)) {
-        return fiber;
-    }
-    if ((direction === "up" || direction === "both") && fiber.return) {
-        const result = queryFiber(fiber.return, predicate, "up", depth, current + 1);
-        if (result) {
+const COLOR = "#3a71c1";
+const print = (output, ...data) => output(`%c[${getMeta().name}] %c${getMeta().version ? `(v${getMeta().version})` : ""}`, `color: ${COLOR}; font-weight: 700;`, "color: #666; font-size: .8em;", ...data);
+const log = (...data) => print(console.log, ...data);
+const warn = (...data) => print(console.warn, ...data);
+const error = (...data) => print(console.error, ...data);
+
+let manualPatches = [];
+const contextMenu = (navId, callback, options = {}) => {
+    const cancel = BdApi.ContextMenu.patch(navId, options.once
+        ? (tree) => {
+            const result = callback(tree);
+            cancel();
             return result;
         }
+        : callback);
+    manualPatches.push(cancel);
+    if (!options.silent) {
+        log(`Patched ${options.name ?? `"${navId}"`} context menu`);
     }
-    if ((direction === "down" || direction === "both") && fiber.child) {
-        let child = fiber.child;
-        while (child) {
-            const result = queryFiber(child, predicate, "down", depth, current + 1);
-            if (result) {
-                return result;
+    return cancel;
+};
+const unpatchAll = () => {
+    if (manualPatches.length + BdApi.Patcher.getPatchesByCaller(getMeta().name).length > 0) {
+        BdApi.Patcher.unpatchAll(getMeta().name);
+        for (const cancel of manualPatches) {
+            cancel();
+        }
+        manualPatches = [];
+        log("Unpatched all");
+    }
+};
+
+const inject = (styles) => {
+    if (typeof styles === "string") {
+        BdApi.DOM.addStyle(getMeta().name, styles);
+    }
+};
+const clear = () => BdApi.DOM.removeStyle(getMeta().name);
+
+const ChannelStore = /* @__PURE__ */ byName("ChannelStore");
+const SelectedChannelStore = /* @__PURE__ */ byName("SelectedChannelStore");
+const VoiceStateStore = /* @__PURE__ */ byName("VoiceStateStore");
+
+const Dispatcher = /* @__PURE__ */ byKeys(["dispatch", "subscribe"], { entries: true });
+
+const GuildMemberStore = /* @__PURE__ */ byName("GuildMemberStore");
+
+const MediaEngineStore = /* @__PURE__ */ byName("MediaEngineStore");
+
+const { React } = BdApi;
+const classNames = /* @__PURE__ */ find((exports) => exports instanceof Object && exports.default === exports && Object.keys(exports).length === 1);
+
+const UserStore = /* @__PURE__ */ byName("UserStore");
+
+const { DropdownInput} = BdApi.Components;
+
+const Button = /* @__PURE__ */ byKeys(["Colors", "Link"], { entries: true });
+
+const Flex = /* @__PURE__ */ byKeys(["Child", "Justify", "Align"], { entries: true });
+
+const FormItem = /* @__PURE__ */ bySource(["titleClassName:", "required:"], { entries: true });
+const FormSwitch = /* @__PURE__ */ bySource(["checked:", "onChange:", "layout:"], {
+    entries: true,
+});
+const FormDivider = /* @__PURE__ */ bySource(["marginTop:", (source) => /{className:.,gap:.}=/.test(source)], {
+    entries: true,
+});
+
+const margins = /* @__PURE__ */ byKeys(["marginBottom40", "marginTop4"]);
+
+const { Item: MenuItem} = BdApi.ContextMenu;
+
+const Slider = /* @__PURE__ */ bySource(["markerPositions:", "asValueChanges:"], {
+    entries: true,
+});
+
+const Switch = /* @__PURE__ */ bySource(["checked:", "reducedMotion:"], { entries: true });
+
+const TextInput = /* @__PURE__ */ bySource(["placeholder", "maxLength", "clearable"], { entries: true });
+
+const Text = /* @__PURE__ */ bySource(["lineClamp:", "variant:", "tabularNumbers:"], { entries: true });
+
+const EMPTY = Symbol();
+const useOnceRef = (init) => {
+    const ref = React.useRef(EMPTY);
+    if (ref.current === EMPTY) {
+        ref.current = init();
+    }
+    return ref;
+};
+const queryTree = (node, predicate) => {
+    const worklist = [node].flat();
+    while (worklist.length !== 0) {
+        const node = worklist.shift();
+        if (React.isValidElement(node)) {
+            if (predicate(node)) {
+                return node;
             }
-            child = child.sibling;
+            const children = node?.props?.children;
+            if (children) {
+                worklist.push(...[children].flat());
+            }
         }
     }
     return null;
 };
-const findOwner = (fiber) => {
-    return queryFiber(fiber, (node) => node?.stateNode instanceof React.Component, "up", 50);
-};
-
-const createLogger = (name, color, version) => {
-    const print = (output, ...data) => output(`%c[${name}] %c${version ? `(v${version})` : ""}`, `color: ${color}; font-weight: 700;`, "color: #666; font-size: .8em;", ...data);
-    return {
-        print,
-        log: (...data) => print(console.log, ...data),
-        warn: (...data) => print(console.warn, ...data),
-        error: (...data) => print(console.error, ...data)
-    };
-};
-
-const createPatcher = (id, Logger) => {
-    const forward = (patcher, object, method, callback, options) => {
-        const original = object[method];
-        const cancel = patcher(id, object, method, (context, args, result) => {
-            const temp = callback({ cancel, original, context, args, result });
-            if (options.once) {
-                cancel();
+const queryTreeForParent = (tree, predicate) => {
+    let childIndex = -1;
+    const parent = queryTree(tree, (node) => {
+        const children = node?.props?.children;
+        if (children instanceof Array) {
+            const index = children.findIndex(predicate);
+            if (index > -1) {
+                childIndex = index;
+                return true;
             }
-            return temp;
-        }, { silent: true });
-        if (!options.silent) {
-            const target = method === "default" ? object[method] : {};
-            const name = options.name ?? object.displayName ?? object.constructor?.displayName ?? target.displayName ?? "unknown";
-            Logger.log(`Patched ${method} of ${name}`);
         }
-        return cancel;
-    };
-    const { Patcher } = BdApi;
-    const instead = (object, method, callback, options = {}) => forward(Patcher.instead, object, method, ({ result: _, ...data }) => callback(data), options);
-    const before = (object, method, callback, options = {}) => forward(Patcher.before, object, method, ({ result: _, ...data }) => callback(data), options);
-    const after = (object, method, callback, options = {}) => forward(Patcher.after, object, method, callback, options);
-    return {
-        instead,
-        before,
-        after,
-        unpatchAll: () => {
-            Patcher.unpatchAll(id);
-            Logger.log("Unpatched all");
-        },
-        forceRerender: (fiber) => new Promise((resolve) => {
-            const owner = findOwner(fiber);
-            if (owner) {
-                const { stateNode } = owner;
-                after(stateNode, "render", () => null, { once: true });
-                stateNode.forceUpdate(() => stateNode.forceUpdate(() => resolve(true)));
-            }
-            else {
-                resolve(false);
-            }
-        })
-    };
+        return false;
+    });
+    return [parent, childIndex];
 };
 
-const createStyles = (id) => {
-    return {
-        inject(styles) {
-            if (typeof styles === "string") {
-                BdApi.injectCSS(id, styles);
-            }
-        },
-        clear: () => BdApi.clearCSS(id)
-    };
-};
+const SettingsContainer = ({ name, children, onReset }) => (React.createElement("div", null,
+    children,
+    onReset ? (React.createElement(React.Fragment, null,
+        React.createElement(FormDivider, { gap: 20 }),
+        React.createElement(Flex, { justify: Flex.Justify.END },
+            React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => confirm(name, "Reset all settings?", {
+                    onConfirm: onReset,
+                }) }, "Reset")))) : null));
 
-const createData = (id) => ({
-    load: (key) => BdApi.loadData(id, key) ?? null,
-    save: (key, value) => BdApi.saveData(id, key, value),
-    delete: (key) => BdApi.deleteData(id, key)
-});
-
-class Settings extends Flux.Store {
-    constructor(Data, defaults) {
-        super(new Dispatcher(), {
-            update: ({ current }) => Data.save("settings", current)
-        });
-        this.listeners = new Set();
+class SettingsStore {
+    defaults;
+    current;
+    onLoad;
+    listeners = new Set();
+    constructor(defaults, onLoad) {
         this.defaults = defaults;
-        this.current = { ...defaults, ...Data.load("settings") };
+        this.current = { ...defaults };
+        this.onLoad = onLoad;
     }
-    get() {
-        return { ...this.current };
+    load() {
+        this.current = { ...this.defaults, ...load("settings") };
+        this.onLoad?.();
+        this._dispatch(false);
     }
-    set(settings) {
-        Object.assign(this.current, settings instanceof Function ? settings(this.get()) : settings);
-        this._dispatcher.dispatch({ type: "update", current: this.current });
+    _dispatch(save$1) {
+        for (const listener of this.listeners) {
+            listener(this.current);
+        }
+        if (save$1) {
+            save("settings", this.current);
+        }
     }
+    getCurrent = () => this.current;
+    update = (settings) => {
+        const update = typeof settings === "function" ? settings(this.current) : settings;
+        this.current = { ...this.current, ...update };
+        this._dispatch(true);
+    };
     reset() {
-        this.set({ ...this.defaults });
+        this.current = { ...this.defaults };
+        this._dispatch(true);
     }
-    connect(component) {
-        return Flux.connectStores([this], () => ({ ...this.get(), defaults: this.defaults, set: (settings) => this.set(settings) }))(component);
+    delete(...keys) {
+        this.current = { ...this.current };
+        for (const key of keys) {
+            delete this.current[key];
+        }
+        this._dispatch(true);
+    }
+    useCurrent() {
+        return React.useSyncExternalStore(this.addListenerEffect, this.getCurrent);
+    }
+    useSelector(selector, deps, compare = Object.is) {
+        const state = useOnceRef(() => selector(this.current));
+        const snapshot = React.useCallback(() => {
+            const next = selector(this.current);
+            if (!compare(state.current, next)) {
+                state.current = next;
+            }
+            return state.current;
+        }, deps ?? [selector]);
+        return React.useSyncExternalStore(this.addListenerEffect, snapshot);
+    }
+    useState() {
+        const current = this.useCurrent();
+        return [current, this.update];
+    }
+    useStateWithDefaults() {
+        const current = this.useCurrent();
+        return [current, this.defaults, this.update];
+    }
+    useListener(listener, deps) {
+        React.useEffect(() => this.addListenerEffect(listener), deps ?? [listener]);
     }
     addListener(listener) {
         this.listeners.add(listener);
-        this._dispatcher.subscribe("update", listener);
         return listener;
     }
+    addListenerEffect = (listener) => {
+        this.addListener(listener);
+        return () => this.removeListener(listener);
+    };
     removeListener(listener) {
-        if (this.listeners.has(listener)) {
-            this._dispatcher.unsubscribe("update", listener);
-            this.listeners.delete(listener);
-        }
+        this.listeners.delete(listener);
     }
     removeAllListeners() {
-        for (const listener of this.listeners) {
-            this._dispatcher.unsubscribe("update", listener);
-        }
         this.listeners.clear();
     }
+    addReactChangeListener = this.addListener;
+    removeReactChangeListener = this.removeListener;
 }
-const createSettings = (Data, defaults) => new Settings(Data, defaults);
+const createSettings = (defaults, onLoad) => new SettingsStore(defaults, onLoad);
 
-const Flex$1 = byName("Flex");
-const Button$1 = byProps("Link", "Hovers");
-const Form = byProps("FormItem", "FormSection", "FormDivider");
-const margins$1 = byProps("marginLarge");
-
-const createPlugin = ({ name, version, styles: css, settings }, callback) => {
-    const Logger = createLogger(name, "#3a71c1", version);
-    const Patcher = createPatcher(name, Logger);
-    const Styles = createStyles(name);
-    const Data = createData(name);
-    const Settings = createSettings(Data, settings ?? {});
-    const plugin = callback({ Logger, Patcher, Styles, Data, Settings });
-    function Wrapper() { }
-    Wrapper.prototype.start = () => {
-        Logger.log("Enabled");
-        Styles.inject(css);
-        plugin.start();
+const createPlugin = (plugin) => (meta) => {
+    setMeta(meta);
+    const { start, stop, styles, Settings, SettingsPanel } = plugin instanceof Function ? plugin(meta) : plugin;
+    Settings?.load();
+    return {
+        start() {
+            log("Enabled");
+            inject(styles);
+            start?.();
+        },
+        stop() {
+            abort();
+            unpatchAll();
+            clear();
+            stop?.();
+            log("Disabled");
+        },
+        getSettingsPanel: SettingsPanel
+            ? () => (React.createElement(SettingsContainer, { name: meta.name, onReset: Settings ? () => Settings.reset() : undefined },
+                React.createElement(SettingsPanel, null)))
+            : undefined,
     };
-    Wrapper.prototype.stop = () => {
-        Patcher.unpatchAll();
-        Styles.clear();
-        const promise = plugin.stop();
-        if (promise) {
-            promise.then(() => Logger.log("Disabled"));
-        }
-        else {
-            Logger.log("Disabled");
-        }
-    };
-    if (plugin.settingsPanel) {
-        const ConnectedSettings = Settings.connect(plugin.settingsPanel);
-        Wrapper.prototype.getSettingsPanel = () => (React.createElement(Form.FormSection, null,
-            React.createElement(ConnectedSettings, null),
-            React.createElement(Form.FormDivider, { className: classNames(margins$1.marginTop20, margins$1.marginBottom20) }),
-            React.createElement(Flex$1, { justify: Flex$1.Justify.END },
-                React.createElement(Button$1, { size: Button$1.Sizes.SMALL, onClick: () => confirm(name, "Reset all settings?", {
-                        onConfirm: () => Settings.reset()
-                    }) }, "Reset"))));
-    }
-    return Wrapper;
 };
 
-const Flex = byName("Flex");
-const Text$1 = byName("Text");
-const Button = byProps("Link", "Hovers");
-const { FormSection, FormTitle, FormItem, FormText, FormDivider } = byProps("FormSection", "FormText") ?? {};
-const SwitchItem = byName("SwitchItem");
-const TextInput = byName("TextInput");
-const SelectTempWrapper = byName("SelectTempWrapper");
-const Slider = byName("Slider");
-const margins = byProps("marginLarge");
-const settings = {
-    voice: null,
+const Settings = createSettings({
+    voice: "",
     volume: 100,
     speed: 1,
     filterNames: true,
     filterBots: false,
     filterStages: true,
-    join: "$user joined $channel",
-    leave: "$user left $channel",
-    joinSelf: "You joined $channel",
-    moveSelf: "You were moved to $channel",
-    leaveSelf: "You left $channel",
-    privateCall: "The call"
-};
-const SettingsPanel = ({ speak, defaults, set, voice, volume, speed, filterNames, filterBots, filterStages, ...settings }) => (React.createElement(React.Fragment, null,
-    React.createElement(FormItem, { className: margins.marginBottom20 },
-        React.createElement(FormTitle, null, "TTS Voice"),
-        React.createElement(SelectTempWrapper, { value: voice, searchable: false, clearable: false, onChange: ({ value }) => set({ voice: value }), options: speechSynthesis.getVoices().map(({ name, lang, voiceURI }) => ({
-                value: voiceURI,
-                label: (React.createElement(Flex, null,
-                    React.createElement(Text$1, { style: { marginRight: 4 } }, name),
-                    React.createElement(Text$1, { color: Text$1.Colors.MUTED },
-                        "[",
-                        lang,
-                        "]")))
-            })) })),
-    React.createElement(FormItem, { className: margins.marginBottom20 },
-        React.createElement(FormTitle, null, "TTS Volume"),
-        React.createElement(Slider, { initialValue: volume, maxValue: 100, minValue: 0, asValueChanges: (value) => set({ volume: value }) })),
-    React.createElement(FormItem, { className: margins.marginBottom20 },
-        React.createElement(FormTitle, null, "TTS Speed"),
-        React.createElement(Slider, { initialValue: speed, maxValue: 10, minValue: 0.1, asValueChanges: (value) => set({ speed: value }), onValueRender: (value) => `${value.toFixed(2)}x`, markers: [0.1, 1, 2, 5, 10], onMarkerRender: (value) => `${value.toFixed(2)}x` })),
-    React.createElement(FormDivider, { className: classNames(margins.marginTop20, margins.marginBottom20) }),
-    React.createElement(FormItem, null,
-        React.createElement(SwitchItem, { value: filterNames, onChange: (checked) => set({ filterNames: checked }), note: "Limit user & channel names to alphanumeric characters." }, "Enable Name Filter")),
-    React.createElement(FormItem, null,
-        React.createElement(SwitchItem, { value: filterBots, onChange: (checked) => set({ filterBots: checked }), note: "Disable notifications for bot users in voice." }, "Enable Bot Filter")),
-    React.createElement(FormItem, null,
-        React.createElement(SwitchItem, { value: filterStages, onChange: (checked) => set({ filterStages: checked }), note: "Disable notifications for stage voice channels." }, "Enable Stage Filter")),
-    React.createElement(FormSection, null,
-        React.createElement(FormTitle, { tag: "h3" }, "Messages"),
-        React.createElement(FormText, { type: "description", className: margins.marginBottom20 }, "$user will get replaced with the respective User Nickname, $username with the User Account name and $channel with the respective Voice Channel name.")),
-    ([
-        {
-            title: "Join Message (Other Users)",
-            setting: "join"
+    notifs: {
+        mute: {
+            enabled: true,
+            message: "Muted",
         },
-        {
-            title: "Leave Message (Other Users)",
-            setting: "leave"
+        unmute: {
+            enabled: true,
+            message: "Unmuted",
         },
-        {
-            title: "Join Message (Self)",
-            setting: "joinSelf"
+        deafen: {
+            enabled: true,
+            message: "Deafened",
         },
-        {
-            title: "Move Message (Self)",
-            setting: "moveSelf"
+        undeafen: {
+            enabled: true,
+            message: "Undeafened",
         },
-        {
-            title: "Leave Message (Self)",
-            setting: "leaveSelf"
+        join: {
+            enabled: true,
+            message: "$user joined $channel",
         },
-        {
-            title: "Private Call channel name",
-            setting: "privateCall"
-        }
-    ]).map(({ title, setting }, i) => (React.createElement(FormItem, { key: i, className: margins.marginBottom20 },
-        React.createElement(FormTitle, null, title),
-        React.createElement(Flex, { align: Flex.Align.CENTER },
-            React.createElement("div", { style: { flexGrow: 1, marginRight: 20 } },
-                React.createElement(TextInput, { value: settings[setting], placeholder: defaults[setting], onChange: (value) => set({ [setting]: value }) })),
-            React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => speak(settings[setting]
-                    .split("$user").join("user")
-                    .split("$channel").join("channel")) }, "Test")))))));
+        leave: {
+            enabled: true,
+            message: "$user left $channel",
+        },
+        joinSelf: {
+            enabled: true,
+            message: "You joined $channel",
+        },
+        moveSelf: {
+            enabled: true,
+            message: "You were moved to $channel",
+        },
+        leaveSelf: {
+            enabled: true,
+            message: "You left $channel",
+        },
+    },
+    unknownChannel: "The call",
+});
 
-const name = "VoiceEvents";
-const author = "Zerthox";
-const version = "2.0.1";
-const description = "Add TTS Event Notifications to your selected Voice Channel. TeamSpeak feeling.";
-const config = {
-	name: name,
-	author: author,
-	version: version,
-	description: description
-};
-
-const Events = byProps("dispatch", "subscribe");
-const Channels = byProps("getChannel", "hasChannel");
-const SelectedChannel = byProps("getChannelId", "getVoiceChannelId");
-const VoiceStates = byProps("getVoiceStates", "hasVideo");
-const Users = byProps("getUser", "getCurrentUser");
-const Members = byProps("getMember", "isMember");
-const Text = byName("Text");
-const { MenuGroup, MenuItem } = byProps("MenuGroup", "MenuItem", "MenuSeparator") ?? {};
-const VoiceContextMenu = query({ name: "ChannelListVoiceChannelContextMenu", source: ["isGuildStageVoice"] });
-let prevStates = {};
-const saveStates = () => {
-    prevStates = { ...VoiceStates.getVoiceStatesForChannel(SelectedChannel.getVoiceChannelId()) };
-};
-const index = createPlugin({ ...config, settings }, ({ Logger, Patcher, Settings }) => {
-    const findDefaultVoice = () => {
-        const voices = speechSynthesis.getVoices();
-        if (voices.length === 0) {
-            Logger.error("No speech synthesis voices available");
-            alert(config.name, React.createElement(Text, { color: Text.Colors.STANDARD },
-                "Electron does not have any Speech Synthesis Voices available on your system.",
-                React.createElement("br", null),
-                "The plugin will be unable to function properly."));
-            return null;
-        }
-        else {
-            return voices.find((voice) => voice.lang === "en-US") ?? voices[0];
-        }
-    };
-    Settings.defaults.voice = findDefaultVoice()?.voiceURI;
-    if (Settings.get().voice === null) {
-        Settings.set({ voice: Settings.defaults.voice });
+const findDefaultVoice = () => {
+    const voices = speechSynthesis.getVoices();
+    if (voices.length === 0) {
+        error("No speech synthesis voices available");
+        alert(getMeta().name, React.createElement(Text, null,
+            "Electron does not have any Speech Synthesis Voices available on your system.",
+            React.createElement("br", null),
+            "The plugin may be unable to function properly."));
     }
-    const findCurrentVoice = () => {
-        const uri = Settings.get().voice;
-        const voice = speechSynthesis.getVoices().find((voice) => voice.voiceURI === uri);
-        if (voice) {
-            return voice;
-        }
-        else {
-            Logger.warn(`Voice "${uri}" not found, reverting to default`);
-            const defaultVoice = findDefaultVoice();
-            Settings.set({ voice: defaultVoice.voiceURI });
-            return defaultVoice;
-        }
-    };
-    const speak = (message) => {
-        const { volume, speed } = Settings.get();
+    else {
+        return voices.find((voice) => voice.lang === "en-US") ?? voices[0];
+    }
+};
+const findCurrentVoice = () => {
+    const uri = Settings.current.voice;
+    const voice = speechSynthesis.getVoices().find((voice) => voice.voiceURI === uri);
+    if (voice) {
+        return voice;
+    }
+    else {
+        warn(`Voice "${uri}" not found, reverting to default`);
+        const defaultVoice = findDefaultVoice();
+        Settings.update({ voice: defaultVoice?.voiceURI });
+        return defaultVoice;
+    }
+};
+const speak = (message) => {
+    const voice = findCurrentVoice();
+    if (voice) {
+        const { volume, speed } = Settings.current;
         const utterance = new SpeechSynthesisUtterance(message);
-        utterance.voice = findCurrentVoice();
+        utterance.voice = voice;
         utterance.volume = volume / 100;
         utterance.rate = speed;
         speechSynthesis.speak(utterance);
-    };
-    const processName = (name) => {
-        return Settings.get().filterNames ? name.split("").map((char) => /[a-zA-Z0-9]/.test(char) ? char : " ").join("") : name;
-    };
-    const notify = (type, userId, channelId) => {
-        const settings = Settings.get();
-        const user = Users.getUser(userId);
-        const channel = Channels.getChannel(channelId);
-        const isDM = channel.isDM() || channel.isGroupDM();
-        if (settings.filterBots && user.bot
-            || settings.filterStages && channel.isGuildStageVoice()) {
-            return;
-        }
-        const nick = Members.getMember(channel.getGuildId(), userId)?.nick ?? user.username;
-        const channelName = isDM ? settings.privateCall : channel.name;
-        speak(settings[type]
-            .split("$username").join(processName(user.username))
-            .split("$user").join(processName(nick))
-            .split("$channel").join(processName(channelName)));
-    };
-    const listener = (event) => {
-        for (const { userId, channelId } of event.voiceStates) {
-            try {
-                const prev = prevStates[userId];
-                if (userId === Users.getCurrentUser().id) {
-                    if (!channelId) {
-                        notify("leaveSelf", userId, prev.channelId);
-                        saveStates();
-                    }
-                    else if (!prev) {
-                        notify("joinSelf", userId, channelId);
-                        saveStates();
-                    }
-                    else if (channelId !== prev.channelId) {
-                        notify("moveSelf", userId, channelId);
-                        saveStates();
-                    }
+    }
+};
+const processName = (name) => {
+    return Settings.current.filterNames
+        ? name
+            .split("")
+            .map((char) => (/[a-zA-Z0-9]/.test(char) ? char : " "))
+            .join("")
+        : name;
+};
+const notify = (type, userId, channelId) => {
+    const settings = Settings.current;
+    const notif = settings.notifs[type];
+    if (!notif.enabled) {
+        return;
+    }
+    const user = UserStore.getUser(userId);
+    const channel = ChannelStore.getChannel(channelId);
+    if ((settings.filterBots && user?.bot) || (settings.filterStages && channel?.isGuildStageVoice())) {
+        return;
+    }
+    const displayName = user.globalName ?? user.username;
+    const nick = GuildMemberStore.getMember(channel?.getGuildId(), userId)?.nick ?? displayName;
+    const channelName = !channel || channel.isDM() || channel.isGroupDM() ? settings.unknownChannel : channel.name;
+    const message = notif.message
+        .replaceAll("$username", processName(user.username))
+        .replaceAll("$displayname", processName(user.username))
+        .replaceAll("$user", processName(nick))
+        .replaceAll("$channel", processName(channelName));
+    speak(message);
+};
+
+const titles = {
+    mute: "Mute (Self)",
+    unmute: "Unmute (Self)",
+    deafen: "Deafen (Self)",
+    undeafen: "Undeafen (Self)",
+    join: "Join (Other Users)",
+    leave: "Leave (Other Users)",
+    joinSelf: "Join (Self)",
+    moveSelf: "Move (Self)",
+    leaveSelf: "Leave (Self)",
+};
+const VoiceLabel = ({ name, lang }) => (React.createElement(Flex, { direction: Flex.Direction.HORIZONTAL, align: Flex.Align.CENTER },
+    React.createElement(Text, { variant: "text-md/normal" }, name),
+    React.createElement(Text, { variant: "text-xs/semibold", style: { marginLeft: 8 } }, lang)));
+const SettingsPanel = () => {
+    const [{ voice, volume, speed, filterNames, filterBots, filterStages, ...settings }, defaults, setSettings] = Settings.useStateWithDefaults();
+    return (React.createElement(React.Fragment, null,
+        React.createElement(FormItem, { className: margins.marginBottom20, title: "TTS Voice" },
+            React.createElement(DropdownInput, { value: voice, options: speechSynthesis.getVoices().map(({ name, lang, voiceURI }) => ({
+                    value: voiceURI,
+                    label: React.createElement(VoiceLabel, { name: name, lang: lang }),
+                })), onChange: (value) => setSettings({ voice: value }) })),
+        React.createElement(FormItem, { className: margins.marginBottom20, title: "TTS Volume" },
+            React.createElement(Slider, { initialValue: volume, maxValue: 100, minValue: 0, asValueChanges: (value) => setSettings({ volume: value }) })),
+        React.createElement(FormItem, { className: margins.marginBottom20, title: "TTS Speed" },
+            React.createElement(Slider, { initialValue: speed, maxValue: 10, minValue: 0.1, asValueChanges: (value) => setSettings({ speed: value }), onValueRender: (value) => `${value.toFixed(2)}x`, markers: [0.1, 1, 2, 5, 10], onMarkerRender: (value) => `${value.toFixed(2)}x` })),
+        React.createElement(FormDivider, { className: classNames(margins.marginTop20, margins.marginBottom20) }),
+        React.createElement("div", { className: margins.marginBottom20 },
+            React.createElement(FormSwitch, { checked: filterNames, onChange: (checked) => setSettings({ filterNames: checked }), label: "Enable Name Filter", description: "Limit user & channel names to alphanumeric characters." })),
+        React.createElement("div", { className: margins.marginBottom20 },
+            React.createElement(FormSwitch, { checked: filterBots, onChange: (checked) => setSettings({ filterBots: checked }), label: "Enable Bot Filter", description: "Disable notifications for bot users in voice." })),
+        React.createElement("div", { className: margins.marginBottom20 },
+            React.createElement(FormSwitch, { checked: filterStages, onChange: (checked) => setSettings({ filterStages: checked }), label: "Enable Stage Filter", description: "Disable notifications for stage voice channels." })),
+        React.createElement(Text, { variant: "heading-lg/medium" }, "Notifications"),
+        React.createElement(Text, { variant: "text-sm/normal", className: margins.marginBottom20 },
+            React.createElement(Text, { tag: "span", variant: "code" }, "$user"),
+            " ",
+            "will get replaced with the respective User Nickname,",
+            " ",
+            React.createElement(Text, { tag: "span", variant: "code" }, "$displayname"),
+            " ",
+            "with the global User Display Name,",
+            " ",
+            React.createElement(Text, { tag: "span", variant: "code" }, "$username"),
+            " ",
+            "with the User Account name and",
+            " ",
+            React.createElement(Text, { tag: "span", variant: "code" }, "$channel"),
+            " ",
+            "with the respective Voice Channel name."),
+        Object.entries(titles).map(([key, title]) => (React.createElement(FormItem, { key: key, className: margins.marginBottom20, title: title },
+            React.createElement(Flex, { align: Flex.Align.CENTER },
+                React.createElement(Flex.Child, { grow: 1 },
+                    React.createElement("div", null,
+                        React.createElement(TextInput, { value: settings.notifs[key].message, placeholder: defaults.notifs[key].message, onChange: (value) => {
+                                const { notifs } = settings;
+                                notifs[key].message = value;
+                                setSettings({ notifs });
+                            } }))),
+                React.createElement(Flex.Child, { grow: 0 },
+                    React.createElement("div", null,
+                        React.createElement(Switch, { checked: settings.notifs[key].enabled, onChange: (value) => {
+                                const { notifs } = settings;
+                                notifs[key].enabled = value;
+                                setSettings({ notifs });
+                            } }))),
+                React.createElement(Flex.Child, { grow: 0 },
+                    React.createElement("div", null,
+                        React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => speak(settings.notifs[key].message
+                                .split("$user")
+                                .join("user")
+                                .split("$channel")
+                                .join("channel")) }, "Test"))))))),
+        React.createElement(FormItem, { key: "unknownChannel", className: margins.marginBottom20, title: "Unknown Channel Name" },
+            React.createElement(Flex, { align: Flex.Align.CENTER },
+                React.createElement(Flex.Child, { grow: 1 },
+                    React.createElement("div", null,
+                        React.createElement(TextInput, { value: settings.unknownChannel, placeholder: defaults.unknownChannel, onChange: (value) => setSettings({ unknownChannel: value }) }))),
+                React.createElement(Flex.Child, { grow: 0 },
+                    React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => speak(settings.unknownChannel) }, "Test"))))));
+};
+
+const selfMuteHandler = () => {
+    const userId = UserStore.getCurrentUser().id;
+    const channelId = SelectedChannelStore.getVoiceChannelId();
+    notify(MediaEngineStore.isSelfMute() ? "mute" : "unmute", userId, channelId);
+};
+const selfDeafHandler = () => {
+    const userId = UserStore.getCurrentUser().id;
+    const channelId = SelectedChannelStore.getVoiceChannelId();
+    notify(MediaEngineStore.isSelfDeaf() ? "deafen" : "undeafen", userId, channelId);
+};
+let prevStates = {};
+const saveStates = () => {
+    prevStates = { ...VoiceStateStore.getVoiceStatesForChannel(SelectedChannelStore.getVoiceChannelId()) };
+};
+const voiceStateHandler = (action) => {
+    for (const { userId, channelId } of action.voiceStates) {
+        try {
+            const prev = prevStates[userId];
+            if (userId === UserStore.getCurrentUser().id) {
+                if (!channelId) {
+                    notify("leaveSelf", userId, prev.channelId);
+                    saveStates();
                 }
-                else {
-                    const selectedChannelId = SelectedChannel.getVoiceChannelId();
-                    if (!selectedChannelId) {
-                        return;
-                    }
-                    if (!prev && channelId === selectedChannelId) {
-                        notify("join", userId, channelId);
-                        saveStates();
-                    }
-                    else if (prev && !VoiceStates.getVoiceStatesForChannel(selectedChannelId)[userId]) {
-                        notify("leave", userId, selectedChannelId);
-                        saveStates();
-                    }
+                else if (!prev) {
+                    notify("joinSelf", userId, channelId);
+                    saveStates();
+                }
+                else if (channelId !== prev.channelId) {
+                    notify("moveSelf", userId, channelId);
+                    saveStates();
                 }
             }
-            catch (error) {
-                Logger.error("Error processing voice state change, see details below");
-                console.error(error);
+            else {
+                const selectedChannelId = SelectedChannelStore.getVoiceChannelId();
+                if (!selectedChannelId) {
+                    return;
+                }
+                if (!prev && channelId === selectedChannelId) {
+                    notify("join", userId, channelId);
+                    saveStates();
+                }
+                else if (prev && !VoiceStateStore.getVoiceStatesForChannel(selectedChannelId)[userId]) {
+                    notify("leave", userId, selectedChannelId);
+                    saveStates();
+                }
             }
         }
-    };
-    return {
-        start() {
-            saveStates();
-            Events.subscribe("VOICE_STATE_UPDATES", listener);
-            Patcher.after(VoiceContextMenu, "default", ({ result }) => {
-                const { children } = result.props;
-                const index = children.findIndex((node) => [node?.props.children].flat()
-                    .find((child) => child?.props.id === "delete-channel"));
-                children.splice(index, 0, React.createElement(MenuGroup, null,
-                    React.createElement(MenuItem, { isFocused: false, id: "voiceevents-clear", label: "Clear Notification queue", action: () => speechSynthesis.cancel() })));
-                return result;
-            });
-        },
-        stop() {
-            prevStates = {};
-            Events.unsubscribe("VOICE_STATE_UPDATES", listener);
-        },
-        settingsPanel: (props) => React.createElement(SettingsPanel, { speak: speak, ...props })
-    };
+        catch (error$1) {
+            error("Error processing voice state change, see details below");
+            console.error(error$1);
+        }
+    }
+};
+const index = createPlugin({
+    start() {
+        setTimeout(() => {
+            const voice = findDefaultVoice()?.voiceURI;
+            if (voice) {
+                Settings.defaults.voice = voice;
+                if (!Settings.current.voice) {
+                    Settings.update({ voice });
+                }
+            }
+        }, 1000);
+        saveStates();
+        Dispatcher.subscribe("VOICE_STATE_UPDATES", voiceStateHandler);
+        log("Subscribed to voice state actions");
+        Dispatcher.subscribe("AUDIO_TOGGLE_SELF_MUTE", selfMuteHandler);
+        log("Subscribed to self mute actions");
+        Dispatcher.subscribe("AUDIO_TOGGLE_SELF_DEAF", selfDeafHandler);
+        log("Subscribed to self deaf actions");
+        contextMenu("channel-context", (result) => {
+            const [parent, index] = queryTreeForParent(result, (child) => child?.props?.id === "hide-voice-names");
+            if (parent) {
+                parent.props.children.splice(index + 1, 0, React.createElement(MenuItem, { isFocused: false, id: "voiceevents-clear", label: "Clear VoiceEvents queue", action: () => speechSynthesis.cancel() }));
+            }
+        });
+    },
+    stop() {
+        prevStates = {};
+        Dispatcher.unsubscribe("VOICE_STATE_UPDATES", voiceStateHandler);
+        log("Unsubscribed from voice state actions");
+        Dispatcher.unsubscribe("AUDIO_TOGGLE_SELF_MUTE", selfMuteHandler);
+        log("Unsubscribed from self mute actions");
+        Dispatcher.unsubscribe("AUDIO_TOGGLE_SELF_DEAF", selfDeafHandler);
+        log("Unsubscribed from self deaf actions");
+    },
+    Settings,
+    SettingsPanel,
 });
 
 module.exports = index;
-
 /*@end @*/

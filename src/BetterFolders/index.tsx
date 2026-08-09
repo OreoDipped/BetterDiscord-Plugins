@@ -1,186 +1,125 @@
-import {createPlugin, Finder, Utils, React, Flux} from "discordium";
-import {BetterFolderIcon, BetterFolderUploader, FolderData} from "./components";
-import config from "./config.json";
-import styles from "./styles.scss";
+import { createPlugin, Logger, Filters, Finder, Patcher, Utils, React, Fiber } from "dium";
+import { ClientActions, ExpandedGuildFolderStore } from "@dium/modules";
+import { FormSwitch } from "@dium/components";
+import { Settings } from "./settings";
+import { ConnectedBetterFolderIcon, FolderIcon, PropsWithFolderNode } from "./icon";
+import { FolderSettingsClass, mountFolderSettingsPatch, renderFolderSettingsPatch } from "./settings-modal";
+import { css } from "./styles.module.scss";
 
-const ClientActions = Finder.byProps("toggleGuildFolderExpand");
-const GuildsTree = Finder.byProps("getGuildsTree");
-const FolderState = Finder.byProps("getExpandedFolders");
+const guildStyles = Finder.byKeys(["guilds", "base"]);
 
-const {FormItem} = Finder.byProps("FormSection", "FormText") ?? {};
-const RadioGroup = Finder.byName("RadioGroup");
-const SwitchItem = Finder.byName("SwitchItem");
-const FolderHeader = Finder.raw.byName("FolderHeader")?.exports;
-const GuildFolderSettingsModal = Finder.byName("GuildFolderSettingsModal");
-
-let FolderIcon = null;
-
-const guildStyles = Finder.byProps("guilds", "base");
-
-const settings = {
-    closeOnOpen: false,
-    folders: {} as Record<number, FolderData>
+const getGuildsOwner = () => {
+    const node = document.getElementsByClassName(guildStyles.guilds)?.[0];
+    if (node) {
+        const owner = Utils.findOwner(Utils.getFiber(node));
+        if (!owner) {
+            Logger.warn("Unable to find guilds owner");
+        }
+        return owner;
+    } else {
+        Logger.warn("Unable to find guilds node");
+    }
+    return null;
 };
 
-export default createPlugin({...config, styles, settings}, ({Logger, Patcher, Data, Settings}) => {
-    // backwards compatibility for old bd version
-    const oldFolders = Data.load("folders");
-    if (oldFolders) {
-        Data.delete("folders");
-        Settings.set({folders: oldFolders as Record<number, FolderData>});
+const triggerRerender = async (guildsFiber: Fiber | null) => {
+    if (guildsFiber && (await Utils.forceFullRerender(guildsFiber))) {
+        Logger.log("Rerendered guilds");
+    } else {
+        Logger.warn("Unable to rerender guilds");
     }
+};
 
-    const getFolder = (id: number) => Settings.get().folders[id];
+export default createPlugin({
+    start() {
+        let FolderIcon: FolderIcon | null = null;
+        const guildsOwner = getGuildsOwner();
 
-    interface OuterIconProps {
-        folderId: number;
-        childProps: any;
-        FolderIcon: (props: any) => JSX.Element;
-    }
-
-    const ConnectedBetterFolderIcon = Flux.connectStores(
-        [Settings],
-        ({folderId}: OuterIconProps) => ({...getFolder(folderId)})
-    )(BetterFolderIcon);
-
-    const triggerRerender = async () => {
-        const node = document.getElementsByClassName(guildStyles.guilds)?.[0];
-        const fiber = Utils.getFiber(node);
-        if (await Patcher.forceRerender(fiber)) {
-            Logger.log("Rerendered guilds");
-        } else {
-            Logger.warn("Unable to rerender guilds");
-        }
-    };
-
-    return {
-        start() {
-            // patch folder icon render
-            Patcher.after(FolderHeader as {default: (props: any) => JSX.Element}, "default", ({args: [props], result}) => {
-                // find icon container
-                const iconContainer = Utils.queryTree(result, (node) => node?.props?.children?.type?.displayName === "FolderIconContent");
-                if (!iconContainer) {
-                    Logger.warn("Unable to find folder icon container");
-                    return;
+        // patch folder icon wrapper
+        // icon is in same module, not exported
+        const FolderIconWrapper = Finder.findWithKey<React.FunctionComponent<PropsWithFolderNode>>(
+            Filters.bySource("folderNode:", "folderGroupId:", "folderName"),
+        );
+        Patcher.after(
+            ...FolderIconWrapper,
+            ({ args: [props], result }) => {
+                const icon = Utils.queryTree(result, (node) => node?.props?.folderNode) as React.ReactElement<
+                    PropsWithFolderNode,
+                    FolderIcon
+                >;
+                if (!icon) {
+                    return Logger.error("Unable to find FolderIcon component");
                 }
 
                 // save icon component
-                const icon = iconContainer.props.children;
                 if (!FolderIcon) {
+                    Logger.log("Found FolderIcon component");
                     FolderIcon = icon.type;
                 }
 
                 // replace icon with own component
-                iconContainer.props.children = <ConnectedBetterFolderIcon
-                    folderId={props.folderNode.id}
-                    childProps={icon.props}
-                    FolderIcon={FolderIcon}
-                />;
-            });
-
-            // patch folder settings render
-            Patcher.after(GuildFolderSettingsModal.prototype, "render", ({context, result}) => {
-                const {folderId} = context.props;
-                const {state} = context;
-
-                // find form
-                const form = Utils.queryTree(result, (node) => node?.type === "form");
-                if (!form) {
-                    Logger.warn("Unable to find form");
-                    return;
-                }
-
-                // add custom state
-                if (!state.iconType) {
-                    const {icon = null, always = false} = getFolder(folderId) ?? {};
-                    Object.assign(state, {
-                        iconType: icon ? "custom" : "default",
-                        icon,
-                        always
-                    });
-                }
-
-                // render icon select
-                const {children} = form.props;
-                const {className} = children[0].props;
-                children.push(
-                    <FormItem title="Icon" className={className}>
-                        <RadioGroup
-                            value={state.iconType}
-                            options={[
-                                {value: "default", name: "Default Icon"},
-                                {value: "custom", name: "Custom Icon"}
-                            ]}
-                            onChange={({value}) => context.setState({iconType: value})}
-                        />
-                    </FormItem>
+                Utils.replaceElement(
+                    icon,
+                    <ConnectedBetterFolderIcon
+                        folderId={props.folderNode.id}
+                        childProps={icon.props}
+                        FolderIcon={FolderIcon}
+                    />,
                 );
+            },
+            { name: "FolderIconWrapper" },
+        );
+        triggerRerender(guildsOwner);
 
-                if (state.iconType === "custom") {
-                    // render custom icon options
-                    const tree = GuildsTree.getGuildsTree();
-                    children.push(
-                        <FormItem title="Custom Icon" className={className}>
-                            <BetterFolderUploader
-                                icon={state.icon}
-                                always={state.always}
-                                folderNode={tree.nodes[folderId]}
-                                onChange={({icon, always}) => context.setState({icon, always})}
-                                FolderIcon={FolderIcon}
-                            />
-                        </FormItem>
-                    );
-                }
-
-                // override submit onclick
-                const button = Utils.queryTree(result, (node) => node?.props?.type === "submit");
-                const original = button.props.onClick;
-                button.props.onClick = (...args: any[]) => {
-                    original(...args);
-
-                    // update folders if necessary
-                    const {folders} = Settings.get();
-                    if (state.iconType === "custom" && state.icon) {
-                        folders[folderId] = {icon: state.icon, always: state.always};
-                        Settings.set({folders});
-                    } else if ((state.iconType === "default" || !state.icon) && folders[folderId]) {
-                        delete folders[folderId];
-                        Settings.set({folders});
-                    }
-                };
-            });
-
-            // patch folder expand
-            Patcher.after(ClientActions, "toggleGuildFolderExpand", ({original, args: [folderId]}) => {
-                if (Settings.get().closeOnOpen) {
-                    for (const id of FolderState.getExpandedFolders()) {
-                        if (id !== folderId) {
-                            original(id);
-                        }
+        // patch folder expand
+        Patcher.after(ClientActions, "toggleGuildFolderExpand", ({ original, args: [folderId] }) => {
+            if (Settings.current.closeOnOpen) {
+                for (const id of ExpandedGuildFolderStore.getExpandedFolders()) {
+                    if (id !== folderId) {
+                        original(id);
                     }
                 }
-            });
+            }
+        });
 
-            triggerRerender();
-        },
-        stop() {
-            triggerRerender();
-        },
-        settingsPanel: ({closeOnOpen, set}) => (
-            <SwitchItem
-                note="Close other folders when opening a new folder"
-                hideBorder
-                value={closeOnOpen}
-                onChange={(checked: boolean) => {
+        // patch folder settings class
+        Finder.waitForChecked(
+            Filters.bySource(".folderName", ".onClose"),
+            { entries: true },
+            (FolderSettings: FolderSettingsClass) => {
+                Patcher.after(FolderSettings.prototype, "render", renderFolderSettingsPatch, {
+                    name: "FolderSettings render",
+                });
+                Patcher.after(FolderSettings.prototype, "componentDidMount", mountFolderSettingsPatch, {
+                    name: "FolderSettings mount",
+                    force: true,
+                });
+            },
+        );
+    },
+    stop() {
+        triggerRerender(getGuildsOwner());
+    },
+    styles: css,
+    Settings,
+    SettingsPanel: () => {
+        const [{ closeOnOpen }, setSettings] = Settings.useState();
+
+        return (
+            <FormSwitch
+                label="Close on open"
+                description="Close other folders when opening a new folder"
+                checked={closeOnOpen}
+                onChange={(checked) => {
                     if (checked) {
                         // close all folders except one
-                        for (const id of Array.from(FolderState.getExpandedFolders()).slice(1)) {
+                        for (const id of Array.from(ExpandedGuildFolderStore.getExpandedFolders()).slice(1)) {
                             ClientActions.toggleGuildFolderExpand(id);
                         }
                     }
-                    set({closeOnOpen: checked});
+                    setSettings({ closeOnOpen: checked });
                 }}
-            >Close on open</SwitchItem>
-        )
-    };
+            />
+        );
+    },
 });

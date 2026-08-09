@@ -1,22 +1,43 @@
+import { defineConfig } from "rollup";
 import json from "@rollup/plugin-json";
-import scss from "rollup-plugin-scss";
+import sass from "rollup-plugin-sass";
 import typescript from "@rollup/plugin-typescript";
-import {RollupOptions} from "rollup";
+import cleanup from "rollup-plugin-cleanup";
 
-export default {
+export default defineConfig({
     output: {
         format: "cjs",
         exports: "default",
-        preferConst: true
+        generatedCode: {
+            constBindings: true,
+            objectShorthand: true,
+        },
+        freeze: false,
     },
     plugins: [
         json({
             namedExports: true,
-            preferConst: true
+            preferConst: true,
         }),
-        scss({
-            output: false
+        sass({
+            api: "modern",
+            output: false,
+            options: {
+                style: "compressed",
+            },
         }),
-        typescript()
-    ]
-} as RollupOptions;
+        typescript(),
+        cleanup({
+            comments: [/[@#]__PURE__/],
+            maxEmptyLines: 0,
+            extensions: ["js", "ts", "tsx"],
+            sourcemap: false,
+        }),
+    ],
+    treeshake: {
+        preset: "smallest",
+        annotations: true,
+        moduleSideEffects: false,
+        propertyReadSideEffects: false,
+    },
+});

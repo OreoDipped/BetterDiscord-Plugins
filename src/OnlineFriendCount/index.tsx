@@ -1,64 +1,66 @@
-import {createPlugin, Finder, Utils, React, Flux} from "discordium";
-import config from "./config.json";
-import styles from "./styles.scss";
+import { createPlugin, Logger, Finder, Patcher, Utils, React } from "dium";
+import { GuildsNav } from "@dium/components";
+import { Settings } from "./settings";
+import { CountersContainer } from "./counter";
+import { css } from "./styles.module.scss";
 
-const Constants = Finder.byProps("Permissions", "RelationshipTypes");
-const Status = Finder.byProps("getState", "getStatus", "isMobileOnline");
-const Relationships = Finder.byProps("isFriend", "getRelationshipCount");
+const guildStyles = Finder.byKeys(["guilds", "base"]);
 
-const HomeButton = Finder.byProps("HomeButton");
-const {Link} = Finder.byProps("Link", "NavLink") ?? {};
-
-const guildStyles = Finder.byProps("guilds", "base");
-const listStyles = Finder.byProps("listItem");
-const friendsOnline = "friendsOnline-2JkivW";
-
-interface OnlineCountProps {
-    online: number;
-}
-
-const OnlineCount = ({online}: OnlineCountProps) => (
-    <div className={listStyles.listItem}>
-        <Link to={{pathname: "/channels/@me"}}>
-            <div className={friendsOnline}>{online} Online</div>
-        </Link>
-    </div>
-);
-
-const ConnectedOnlineCount = Flux.connectStores(
-    [Status, Relationships],
-    () => {
-        const {RelationshipTypes, StatusTypes} = Constants;
-        const filtered = Object.entries(Relationships.getRelationships())
-            .filter(([id, type]) => type === RelationshipTypes.FRIEND && Status.getStatus(id) !== StatusTypes.OFFLINE);
-        return {online: filtered.length};
+const triggerRerender = async () => {
+    const node = document.getElementsByClassName(guildStyles.guilds)?.[0];
+    const fiber = Utils.getFiber(node);
+    if (await Utils.forceFullRerender(fiber)) {
+        Logger.log("Rerendered guilds");
+    } else {
+        Logger.warn("Unable to rerender guilds");
     }
-)(OnlineCount);
+};
 
-export default createPlugin({...config, styles}, ({Logger, Patcher}) => {
-    const triggerRerender = async () => {
-        const node = document.getElementsByClassName(guildStyles.guilds)?.[0];
-        const fiber = Utils.getFiber(node);
-        if (await Patcher.forceRerender(fiber)) {
-            Logger.log("Rerendered guilds");
-        } else {
-            Logger.warn("Unable to rerender guilds");
-        }
-    };
+export default createPlugin({
+    start() {
+        // patch guilds nav
+        Patcher.after(
+            GuildsNav,
+            "type",
+            ({ result }) => {
+                const guildsParent = Utils.queryTree(result, (node) =>
+                    node?.props?.className?.split(" ").includes(guildStyles.guilds),
+                );
+                if (!guildsParent) {
+                    return Logger.error("Unable to find guilds parent");
+                }
 
-    return {
-        start() {
-            Patcher.instead(HomeButton, "HomeButton", ({original: HomeButton, args: [props]}) => (
-                <>
-                    <HomeButton {...props}/>
-                    <ConnectedOnlineCount/>
-                </>
-            ));
+                // chain patch
+                Utils.hookFunctionComponent(guildsParent, (result) => {
+                    const themeParent = Utils.queryTree(result, (node) => typeof node?.props?.children === "function");
+                    if (!themeParent) {
+                        return Logger.error("Unable to find theme parent");
+                    }
 
-            triggerRerender();
-        },
-        stop() {
-            triggerRerender();
-        }
-    };
+                    // chain patch again
+                    Utils.hookFunctionComponent(themeParent, (result) => {
+                        // find home button wrapper & parent
+                        const [scroller, index] = Utils.queryTreeForParent(
+                            result,
+                            (child) => child?.props?.lurkingGuildIds,
+                        );
+                        if (!scroller) {
+                            return Logger.error("Unable to find home button wrapper");
+                        }
+
+                        // insert after home button wrapper
+                        scroller.props.children.splice(index + 1, 0, <CountersContainer />);
+                    });
+                });
+            },
+            { name: "GuildsNav" },
+        );
+
+        triggerRerender();
+    },
+    stop() {
+        triggerRerender();
+    },
+    styles: css,
+    Settings,
 });

@@ -1,14 +1,15 @@
 {
     "compilerOptions": {
-        "target": "es2020",
-        "jsx": "react",
-        "removeComments": true,
-        "moduleResolution": "node",
+        "noEmit": true,
+        "target": "es2023",
+        "module": "esnext",
+        "moduleResolution": "bundler",
         "esModuleInterop": true,
         "resolveJsonModule": true,
-        "baseUrl": ".",
+        "skipLibCheck": true,
+        "jsx": "react",
         "paths": {
-            "discordium/*": ["./discordium/*"]
+            "@dium/*": ["./packages/dium/src/*"]
         }
     }
 }

@@ -1,62 +1,67 @@
-import {createPlugin, React, Finder, Flux, Utils} from "discordium";
-import config from "./config.json";
-import styles from "./styles.scss";
+import { createPlugin, Finder, Filters, Patcher, React } from "dium";
+import { Snowflake, MediaEngineStore, MediaEngineContext, AudioConvert, MediaEngineActions } from "@dium/modules";
+import { Settings } from "./settings";
+import { css } from "./styles.module.scss";
+import { MenuItem } from "@dium/components";
+import { NumberInput } from "./input";
+import { handleVolumeSync, resetVolumeSync } from "./sync";
 
-const SettingsStore = Finder.byProps("getLocalVolume");
-const ControlItem = Finder.raw.byName("MenuControlItem")?.exports;
+type UseUserVolumeItem = (userId: Snowflake, context: MediaEngineContext) => React.JSX.Element;
 
-interface VolumeInputProps {
-    value: number;
-    min?: number;
-    max?: number;
-    onChange(value: number): void;
-}
+const useUserVolumeItemFilter = Filters.bySource("user-volume");
 
-const VolumeInput = ({value, min = 0, max = 999999, onChange}: VolumeInputProps): JSX.Element => (
-    <div className="container-BetterVolume">
-        <input
-            type="number"
-            min={min}
-            max={max}
-            value={Math.round((value + Number.EPSILON) * 100) / 100}
-            onChange={({target}) => onChange(Math.min(Math.max(parseFloat(target.value), min), max))}
-            className="input-BetterVolume"
-        />
-        <span>%</span>
-    </div>
-);
-
-interface ConnectedVolumeInputProps {
-    min?: number;
-    max?: number;
-    control: {
-        value: number;
-        onChange(value: number): void;
-    };
-}
-
-const ConnectedVolumeInput = Flux.connectStores(
-    [SettingsStore],
-    ({control: {value, onChange}}: ConnectedVolumeInputProps) => ({value, onChange})
-)(VolumeInput);
-
-export default createPlugin({...config, styles}, ({Logger, Patcher}) => ({
+export default createPlugin({
     start() {
-        Patcher.after(ControlItem as {default: (props: any) => JSX.Element}, "default", ({args: [props], result}) => {
-            if (props.id === "user-volume") {
-                const slider = Utils.queryTree(result, (node) => node?.props?.maxValue === 200);
-                if (!slider) {
-                    Logger.error("Unable to find slider");
-                    return;
-                }
+        // handle volume override sync
+        handleVolumeSync();
 
-                const {props} = result;
-                props.children = [props.children].flat();
-                props.children.push(<ConnectedVolumeInput control={slider.props}/>);
+        // add number input to user volume item
+        Finder.waitForChecked(
+            useUserVolumeItemFilter,
+            { resolve: false },
+            (exported: Record<string, UseUserVolumeItem>) => {
+                const useUserVolumeItem = Finder.resolveKey(exported, useUserVolumeItemFilter);
+                Patcher.after(
+                    ...useUserVolumeItem,
+                    ({ args: [userId, context], result }) => {
+                        // check for original render
+                        if (result) {
+                            // we can read this directly, the original has a hook to ensure updates
+                            const volume = MediaEngineStore.getLocalVolume(userId, context);
 
-                return result;
-            }
-        });
+                            return (
+                                <>
+                                    {result}
+                                    <MenuItem
+                                        id="user-volume-input"
+                                        render={() => (
+                                            <NumberInput
+                                                value={AudioConvert.amplitudeToPerceptual(volume)}
+                                                min={0}
+                                                max={999999}
+                                                fallback={100}
+                                                onChange={(value) =>
+                                                    MediaEngineActions.setLocalVolume(
+                                                        userId,
+                                                        AudioConvert.perceptualToAmplitude(value),
+                                                        context,
+                                                    )
+                                                }
+                                            />
+                                        )}
+                                    />
+                                </>
+                            );
+                        }
+                    },
+                    { name: "useUserVolumeItem" },
+                );
+            },
+        );
     },
-    stop() {}
-}));
+    stop() {
+        resetVolumeSync();
+    },
+    styles: css,
+    Settings,
+});

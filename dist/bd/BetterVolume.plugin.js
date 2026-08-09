@@ -1,12 +1,11 @@
 /**
  * @name BetterVolume
+ * @version 3.2.4
  * @author Zerthox
- * @version 2.0.0
- * @description Set user volume values manually instead of using a limited slider.
  * @authorLink https://github.com/Zerthox
+ * @description Set user volume values manually instead of using a slider. Allows setting volumes higher than 200%.
  * @website https://github.com/Zerthox/BetterDiscord-Plugins
  * @source https://github.com/Zerthox/BetterDiscord-Plugins/tree/master/src/BetterVolume
- * @updateUrl https://raw.githubusercontent.com/Zerthox/BetterDiscord-Plugins/master/dist/bd/BetterVolume.plugin.js
 **/
 
 /*@cc_on @if (@_jscript)
@@ -16,7 +15,7 @@ shell.Popup(
     "Do NOT run scripts from the internet with the Windows Script Host!\nMove this file to your BetterDiscord plugins folder.",
     0,
     pluginName + ": Warning!",
-    0x1030
+    0x1030,
 );
 var fso = new ActiveXObject("Scripting.FileSystemObject");
 var pluginsPath = shell.expandEnvironmentStrings("%appdata%\\BetterDiscord\\plugins");
@@ -25,25 +24,20 @@ if (!fso.FolderExists(pluginsPath)) {
         "Unable to find BetterDiscord on your computer.\nOpen the download page of BetterDiscord?",
         0,
         pluginName + ": BetterDiscord not found",
-        0x34
+        0x34,
     );
     if (popup === 6) {
-        shell.Exec("explorer \"https://betterdiscord.app\"");
+        shell.Exec('explorer "https://betterdiscord.app"');
     }
 } else if (WScript.ScriptFullName === pluginsPath + "\\" + WScript.ScriptName) {
     shell.Popup(
-        "This plugin is already in the correct folder.\nNavigate to the \"Plugins\" settings tab in Discord and enable it there.",
+        'This plugin is already in the correct folder.\nNavigate to the "Plugins" settings tab in Discord and enable it there.',
         0,
         pluginName,
-        0x40
+        0x40,
     );
 } else {
-    var popup = shell.Popup(
-        "Open the BetterDiscord plugins folder?",
-        0,
-        pluginName,
-        0x34
-    );
+    var popup = shell.Popup("Open the BetterDiscord plugins folder?", 0, pluginName, 0x34);
     if (popup === 6) {
         shell.Exec("explorer " + pluginsPath);
     }
@@ -53,389 +47,492 @@ WScript.Quit();
 
 'use strict';
 
-let webpackRequire;
-global.webpackJsonp.push([
-    [],
-    {
-        __discordium__: (_module, _exports, require) => {
-            webpackRequire = require;
-        }
-    },
-    [["__discordium__"]]
-]);
-delete webpackRequire.m.__discordium__;
-delete webpackRequire.c.__discordium__;
-const joinFilters = (filters) => {
-    return (module) => {
-        const { exports } = module;
-        return filters.every((filter) => filter(exports, module) || (exports?.__esModule && filter(exports?.default, module)));
-    };
-};
-const filters = {
-    byExports(exported) {
-        return (target) => target === exported || (target instanceof Object && Object.values(target).includes(exported));
-    },
-    byName(name) {
-        return (target) => target instanceof Object && Object.values(target).some(filters.byDisplayName(name));
-    },
-    byDisplayName(name) {
-        return (target) => target?.displayName === name || target?.constructor?.displayName === name;
-    },
-    byProps(props) {
-        return (target) => target instanceof Object && props.every((prop) => prop in target);
-    },
-    byProtos(protos) {
-        return (target) => target instanceof Object && target.prototype instanceof Object && protos.every((proto) => proto in target.prototype);
-    },
-    bySource(contents) {
-        return (target) => target instanceof Function && contents.every((content) => target.toString().includes(content));
+let meta;
+const getMeta = () => {
+    if (meta) {
+        return meta;
+    }
+    else {
+        throw Error("Accessing meta before initialization");
     }
 };
-const genFilters = ({ filter, name, props, protos, source }) => [
-    ...[filter].flat(),
-    typeof name === "string" ? filters.byName(name) : null,
-    props instanceof Array ? filters.byProps(props) : null,
-    protos instanceof Array ? filters.byProtos(protos) : null,
-    source instanceof Array ? filters.bySource(source) : null
-].filter((entry) => entry instanceof Function);
-const raw = {
-    require: webpackRequire,
-    getAll: () => Object.values(webpackRequire.c),
-    find: (...filters) => raw.getAll().find(joinFilters(filters)) ?? null,
-    query: (options) => raw.find(...genFilters(options)),
-    byId: (id) => webpackRequire.c[id] ?? null,
-    byExports: (exported) => raw.find(filters.byExports(exported)),
-    byName: (name) => raw.find(filters.byName(name)),
-    byProps: (...props) => raw.find(filters.byProps(props)),
-    byProtos: (...protos) => raw.find(filters.byProtos(protos)),
-    bySource: (...contents) => raw.find(filters.bySource(contents)),
-    all: {
-        find: (...filters) => raw.getAll().filter(joinFilters(filters)),
-        query: (options) => raw.all.find(...genFilters(options)),
-        byExports: (exported) => raw.all.find(filters.byExports(exported)),
-        byName: (name) => raw.all.find(filters.byName(name)),
-        byProps: (...props) => raw.all.find(filters.byProps(props)),
-        byProtos: (...protos) => raw.all.find(filters.byProtos(protos)),
-        bySource: (...contents) => raw.all.find(filters.bySource(contents))
-    },
-    resolveExports(module, filter = null) {
-        if (module instanceof Object && "exports" in module) {
-            const exported = module.exports;
-            if (!exported) {
-                return exported;
-            }
-            if (typeof filter === "string") {
-                return exported[filter];
-            }
-            else if (filter instanceof Function) {
-                const result = Object.values(exported).find((value) => filter(value));
-                if (result !== undefined) {
-                    return result;
-                }
-            }
-            if (exported.__esModule && "default" in exported && Object.keys(exported).length === 1) {
-                return exported.default;
-            }
-            else {
-                return exported;
-            }
+const setMeta = (newMeta) => {
+    meta = newMeta;
+};
+
+const load = (key) => BdApi.Data.load(getMeta().name, key);
+const save = (key, value) => BdApi.Data.save(getMeta().name, key, value);
+
+const checkObjectValues = (target) => target !== window && target instanceof Object && target.constructor?.prototype !== target;
+const byName$1 = (name) => {
+    return (target) => (target?.displayName ?? target?.constructor?.displayName) === name;
+};
+const byKeys$1 = (...keys) => {
+    return (target) => target instanceof Object && keys.every((key) => key in target);
+};
+const bySource$1 = (...fragments) => {
+    return (target) => {
+        while (target instanceof Object && "$$typeof" in target) {
+            target = target.render ?? target.type;
         }
-        return null;
-    },
-    resolveImports(module) {
-        const source = webpackRequire.m[module.id].toString();
-        const match = source.match(/^(?:function)?\s*\(\w+,\w+,(\w+)\)\s*(?:=>)?\s*{/);
-        if (match) {
-            const requireName = match[1];
-            const calls = Array.from(source.matchAll(new RegExp(`\\W${requireName}\\((\\d+)\\)`, "g")));
-            return calls.map((call) => raw.byId(call[1]));
+        if (target instanceof Function) {
+            const source = target.toString();
+            const renderSource = target.prototype?.render?.toString();
+            return fragments.every((fragment) => typeof fragment === "string"
+                ? source.includes(fragment) || renderSource?.includes(fragment)
+                : fragment(source) || (renderSource && fragment(renderSource)));
         }
         else {
-            return [];
+            return false;
         }
-    },
-    resolveStyles: (module) => raw.resolveImports(module).filter((imported) => (imported instanceof Object
-        && "exports" in imported
-        && Object.values(imported.exports).every((value) => typeof value === "string")
-        && Object.entries(imported.exports).find(([key, value]) => (new RegExp(`^${key}-([a-zA-Z0-9-_]){6}(\\s.+)$`)).test(value))))
-};
-const Finder = {
-    raw,
-    getAll: () => raw.getAll().map((entry) => raw.resolveExports(entry)),
-    find: (...filters) => raw.resolveExports(raw.find(...filters)),
-    query: (options) => raw.resolveExports(raw.query(options), options.export),
-    byId: (id) => raw.resolveExports(raw.byId(id)),
-    byExports: (exported) => raw.resolveExports(raw.byExports(exported)),
-    byName: (name) => raw.resolveExports(raw.byName(name), filters.byDisplayName(name)),
-    byProps: (...props) => raw.resolveExports(raw.byProps(...props), filters.byProps(props)),
-    byProtos: (...protos) => raw.resolveExports(raw.byProtos(...protos), filters.byProtos(protos)),
-    bySource: (...contents) => raw.resolveExports(raw.bySource(...contents), filters.bySource(contents)),
-    resolveImports: (exported) => raw.resolveImports(raw.byExports(exported)).map((entry) => raw.resolveExports(entry)),
-    resolveStyles: (exported) => raw.resolveStyles(raw.byExports(exported)).map((entry) => raw.resolveExports(entry)),
-    all: {
-        find: (...filters) => raw.all.find(...filters).map((entry) => raw.resolveExports(entry)),
-        query: (options) => raw.all.query(options).map((entry) => raw.resolveExports(entry, options.export)),
-        byExports: (exported) => raw.all.byExports(exported).map((entry) => raw.resolveExports(entry)),
-        byName: (name) => raw.all.byName(name).map((entry) => raw.resolveExports(entry, filters.byDisplayName(name))),
-        byProps: (...props) => raw.all.byProps(...props).map((entry) => raw.resolveExports(entry, filters.byProps(props))),
-        byProtos: (...protos) => raw.all.byProtos(...protos).map((entry) => raw.resolveExports(entry, filters.byProtos(protos))),
-        bySource: (...contents) => raw.all.bySource(...contents).map((entry) => raw.resolveExports(entry, filters.bySource(contents)))
-    }
-};
-
-Finder.byProps("subscribe", "emit");
-const React = Finder.byProps("createElement", "Component", "Fragment");
-const ReactDOM = Finder.byProps("render", "findDOMNode", "createPortal");
-const classNames = Finder.find((exports) => exports instanceof Object && exports.default === exports && Object.keys(exports).length === 1);
-Finder.byProps("cloneDeep", "flattenDeep");
-Finder.byProps("valid", "satifies");
-Finder.byProps("utc", "months");
-Finder.byProps("parseBlock", "parseInline");
-Finder.byProps("highlight", "highlightBlock");
-Finder.byProps("captureBreadcrumb");
-Finder.byProps("assert", "validate", "object");
-const Flux = Finder.query({ props: ["Store", "connectStores"], export: "default" });
-const Dispatcher = Finder.query({ props: ["Dispatcher"], export: "Dispatcher" });
-Finder.byProps("languages", "getLocale");
-
-React?.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED;
-ReactDOM?.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.Events;
-
-const confirm = (title, content, options = {}) => BdApi.showConfirmationModal(title, content, options);
-const queryTree = (node, predicate) => {
-    if (predicate(node)) {
-        return node;
-    }
-    if (node?.props?.children) {
-        for (const child of [node.props.children].flat()) {
-            const result = queryTree(child, predicate);
-            if (result) {
-                return result;
-            }
-        }
-    }
-    return null;
-};
-const queryFiber = (fiber, predicate, direction = "up", depth = 30, current = 0) => {
-    if (current > depth) {
-        return null;
-    }
-    if (predicate(fiber)) {
-        return fiber;
-    }
-    if ((direction === "up" || direction === "both") && fiber.return) {
-        const result = queryFiber(fiber.return, predicate, "up", depth, current + 1);
-        if (result) {
-            return result;
-        }
-    }
-    if ((direction === "down" || direction === "both") && fiber.child) {
-        let child = fiber.child;
-        while (child) {
-            const result = queryFiber(child, predicate, "down", depth, current + 1);
-            if (result) {
-                return result;
-            }
-            child = child.sibling;
-        }
-    }
-    return null;
-};
-const findOwner = (fiber) => {
-    return queryFiber(fiber, (node) => node?.stateNode instanceof React.Component, "up", 50);
-};
-
-const createLogger = (name, color, version) => {
-    const print = (output, ...data) => output(`%c[${name}] %c${version ? `(v${version})` : ""}`, `color: ${color}; font-weight: 700;`, "color: #666; font-size: .8em;", ...data);
-    return {
-        print,
-        log: (...data) => print(console.log, ...data),
-        warn: (...data) => print(console.warn, ...data),
-        error: (...data) => print(console.error, ...data)
     };
 };
 
-const createPatcher = (id, Logger) => {
-    const forward = (patcher, object, method, callback, options) => {
-        const original = object[method];
-        const cancel = patcher(id, object, method, (context, args, result) => {
-            const temp = callback({ cancel, original, context, args, result });
-            if (options.once) {
-                cancel();
-            }
-            return temp;
-        }, { silent: true });
-        if (!options.silent) {
-            const target = method === "default" ? object[method] : {};
-            const name = options.name ?? object.displayName ?? object.constructor?.displayName ?? target.displayName ?? "unknown";
-            Logger.log(`Patched ${method} of ${name}`);
-        }
-        return cancel;
-    };
-    const { Patcher } = BdApi;
-    const instead = (object, method, callback, options = {}) => forward(Patcher.instead, object, method, ({ result: _, ...data }) => callback(data), options);
-    const before = (object, method, callback, options = {}) => forward(Patcher.before, object, method, ({ result: _, ...data }) => callback(data), options);
-    const after = (object, method, callback, options = {}) => forward(Patcher.after, object, method, callback, options);
-    return {
-        instead,
-        before,
-        after,
-        unpatchAll: () => {
-            Patcher.unpatchAll(id);
-            Logger.log("Unpatched all");
+const confirm = (title, content, options = {}) => BdApi.UI.showConfirmationModal(title, content, options);
+const mappedProxy = (target, mapping) => {
+    const map = new Map(Object.entries(mapping));
+    return new Proxy(target, {
+        get(target, prop) {
+            return target[map.get(prop) ?? prop];
         },
-        forceRerender: (fiber) => new Promise((resolve) => {
-            const owner = findOwner(fiber);
-            if (owner) {
-                const { stateNode } = owner;
-                after(stateNode, "render", () => null, { once: true });
-                stateNode.forceUpdate(() => stateNode.forceUpdate(() => resolve(true)));
-            }
-            else {
-                resolve(false);
-            }
-        })
-    };
-};
-
-const createStyles = (id) => {
-    return {
-        inject(styles) {
-            if (typeof styles === "string") {
-                BdApi.injectCSS(id, styles);
-            }
+        set(target, prop, value) {
+            target[map.get(prop) ?? prop] = value;
+            return true;
         },
-        clear: () => BdApi.clearCSS(id)
-    };
+        deleteProperty(target, prop) {
+            delete target[map.get(prop) ?? prop];
+            map.delete(prop);
+            return true;
+        },
+        has(target, prop) {
+            return map.has(prop) || prop in target;
+        },
+        ownKeys() {
+            return [...map.keys(), ...Object.keys(target)];
+        },
+        getOwnPropertyDescriptor(target, prop) {
+            return Object.getOwnPropertyDescriptor(target, map.get(prop) ?? prop);
+        },
+        defineProperty(target, prop, attributes) {
+            Object.defineProperty(target, map.get(prop) ?? prop, attributes);
+            return true;
+        },
+    });
 };
 
-const createData = (id) => ({
-    load: (key) => BdApi.loadData(id, key) ?? null,
-    save: (key, value) => BdApi.saveData(id, key, value),
-    delete: (key) => BdApi.deleteData(id, key)
+const find = (filter, { resolve = true, entries = false } = {}) => BdApi.Webpack.getModule(filter, {
+    defaultExport: resolve,
+    searchExports: entries,
+});
+const byName = (name, options) => find(byName$1(name), options);
+const byKeys = (keys, options) => find(byKeys$1(...keys), options);
+const bySource = (contents, options) => find(bySource$1(...contents), options);
+const resolveKey = (target, filter) => [
+    target,
+    (target ? Object.entries(target).find(([, value]) => filter(value))?.[0] : null),
+];
+const demangle = (mapping, required, proxy = false) => {
+    const req = Object.keys(mapping);
+    const found = find((target) => checkObjectValues(target)
+        && req.every((req) => Object.values(target).some((value) => mapping[req](value))));
+    return proxy
+        ? mappedProxy(found, Object.fromEntries(Object.entries(mapping).map(([key, filter]) => [
+            key,
+            Object.entries(found ?? {}).find(([, value]) => filter(value))?.[0],
+        ])))
+        : Object.fromEntries(Object.entries(mapping).map(([key, filter]) => [
+            key,
+            Object.values(found ?? {}).find((value) => filter(value)),
+        ]));
+};
+let controller = new AbortController();
+const waitFor = async (filter, { resolve = true, entries = false } = {}) => BdApi.Webpack.waitForModule(filter, {
+    signal: controller.signal,
+    defaultExport: resolve,
+    searchExports: entries,
+});
+const waitForChecked = async (filter, options = {}, callback) => {
+    const signal = controller.signal;
+    const result = await waitFor(filter, options);
+    if (!signal.aborted) {
+        return callback(result);
+    }
+};
+const abort = () => {
+    controller.abort();
+    controller = new AbortController();
+};
+
+const COLOR = "#3a71c1";
+const print = (output, ...data) => output(`%c[${getMeta().name}] %c${getMeta().version ? `(v${getMeta().version})` : ""}`, `color: ${COLOR}; font-weight: 700;`, "color: #666; font-size: .8em;", ...data);
+const log = (...data) => print(console.log, ...data);
+const warn = (...data) => print(console.warn, ...data);
+
+let manualPatches = [];
+const addManual = (cancel, name) => {
+    manualPatches.push(cancel);
+};
+const patch = (type, object, method, callback, options) => {
+    const original = object?.[method];
+    const name = options.name ?? String(method);
+    if (!(original instanceof Function)) {
+        if (options.force && !original) {
+            warn(`Forcing patch on ${name}`);
+            object[method] = function noop() { };
+            addManual(() => {
+                object[method] = original;
+            });
+        }
+        else {
+            throw TypeError(`patch target ${name} is ${original} not function`);
+        }
+    }
+    const cancel = BdApi.Patcher[type](getMeta().name, object, method, options.once
+        ? (context, args, result) => {
+            const newResult = callback({ cancel, original, context, args, result });
+            cancel();
+            return newResult;
+        }
+        : (context, args, result) => callback({ cancel, original, context, args, result }));
+    if (!options.silent) {
+        log(`Patched ${name}`);
+    }
+    return cancel;
+};
+const after = (object, method, callback, options = {}) => patch("after", object, method, callback, options);
+const unpatchAll = () => {
+    if (manualPatches.length + BdApi.Patcher.getPatchesByCaller(getMeta().name).length > 0) {
+        BdApi.Patcher.unpatchAll(getMeta().name);
+        for (const cancel of manualPatches) {
+            cancel();
+        }
+        manualPatches = [];
+        log("Unpatched all");
+    }
+};
+
+const inject = (styles) => {
+    if (typeof styles === "string") {
+        BdApi.DOM.addStyle(getMeta().name, styles);
+    }
+};
+const clear = () => BdApi.DOM.removeStyle(getMeta().name);
+
+const Dispatcher = /* @__PURE__ */ byKeys(["dispatch", "subscribe"], { entries: true });
+
+const MediaEngineStore = /* @__PURE__ */ byName("MediaEngineStore");
+const MediaEngineActions = /* @__PURE__ */ byKeys(["setLocalVolume"]);
+
+const { React } = BdApi;
+
+const AudioConvert = /* @__PURE__ */ demangle({
+    amplitudeToPerceptual: bySource$1("Math.log10"),
+    perceptualToAmplitude: bySource$1("Math.pow(10"),
 });
 
-class Settings extends Flux.Store {
-    constructor(Data, defaults) {
-        super(new Dispatcher(), {
-            update: ({ current }) => Data.save("settings", current)
-        });
-        this.listeners = new Set();
+const Button = /* @__PURE__ */ byKeys(["Colors", "Link"], { entries: true });
+
+const Flex = /* @__PURE__ */ byKeys(["Child", "Justify", "Align"], { entries: true });
+
+const FormDivider = /* @__PURE__ */ bySource(["marginTop:", (source) => /{className:.,gap:.}=/.test(source)], {
+    entries: true,
+});
+
+const { Item: MenuItem} = BdApi.ContextMenu;
+
+const EMPTY = Symbol();
+const useOnceRef = (init) => {
+    const ref = React.useRef(EMPTY);
+    if (ref.current === EMPTY) {
+        ref.current = init();
+    }
+    return ref;
+};
+
+const SettingsContainer = ({ name, children, onReset }) => (React.createElement("div", null,
+    children,
+    onReset ? (React.createElement(React.Fragment, null,
+        React.createElement(FormDivider, { gap: 20 }),
+        React.createElement(Flex, { justify: Flex.Justify.END },
+            React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => confirm(name, "Reset all settings?", {
+                    onConfirm: onReset,
+                }) }, "Reset")))) : null));
+
+class SettingsStore {
+    defaults;
+    current;
+    onLoad;
+    listeners = new Set();
+    constructor(defaults, onLoad) {
         this.defaults = defaults;
-        this.current = Data.load("settings") ?? { ...defaults };
+        this.current = { ...defaults };
+        this.onLoad = onLoad;
     }
-    get() {
-        return { ...this.current };
+    load() {
+        this.current = { ...this.defaults, ...load("settings") };
+        this.onLoad?.();
+        this._dispatch(false);
     }
-    set(settings) {
-        Object.assign(this.current, settings instanceof Function ? settings(this.get()) : settings);
-        this._dispatcher.dispatch({ type: "update", current: this.current });
+    _dispatch(save$1) {
+        for (const listener of this.listeners) {
+            listener(this.current);
+        }
+        if (save$1) {
+            save("settings", this.current);
+        }
     }
+    getCurrent = () => this.current;
+    update = (settings) => {
+        const update = typeof settings === "function" ? settings(this.current) : settings;
+        this.current = { ...this.current, ...update };
+        this._dispatch(true);
+    };
     reset() {
-        this.set({ ...this.defaults });
+        this.current = { ...this.defaults };
+        this._dispatch(true);
     }
-    connect(component) {
-        return Flux.connectStores([this], () => ({ ...this.get(), defaults: this.defaults, set: (settings) => this.set(settings) }))(component);
+    delete(...keys) {
+        this.current = { ...this.current };
+        for (const key of keys) {
+            delete this.current[key];
+        }
+        this._dispatch(true);
+    }
+    useCurrent() {
+        return React.useSyncExternalStore(this.addListenerEffect, this.getCurrent);
+    }
+    useSelector(selector, deps, compare = Object.is) {
+        const state = useOnceRef(() => selector(this.current));
+        const snapshot = React.useCallback(() => {
+            const next = selector(this.current);
+            if (!compare(state.current, next)) {
+                state.current = next;
+            }
+            return state.current;
+        }, deps ?? [selector]);
+        return React.useSyncExternalStore(this.addListenerEffect, snapshot);
+    }
+    useState() {
+        const current = this.useCurrent();
+        return [current, this.update];
+    }
+    useStateWithDefaults() {
+        const current = this.useCurrent();
+        return [current, this.defaults, this.update];
+    }
+    useListener(listener, deps) {
+        React.useEffect(() => this.addListenerEffect(listener), deps ?? [listener]);
     }
     addListener(listener) {
         this.listeners.add(listener);
-        this._dispatcher.subscribe("update", listener);
         return listener;
     }
+    addListenerEffect = (listener) => {
+        this.addListener(listener);
+        return () => this.removeListener(listener);
+    };
     removeListener(listener) {
-        if (this.listeners.has(listener)) {
-            this._dispatcher.unsubscribe("update", listener);
-            this.listeners.delete(listener);
-        }
+        this.listeners.delete(listener);
     }
     removeAllListeners() {
-        for (const listener of this.listeners) {
-            this._dispatcher.unsubscribe("update", listener);
-        }
         this.listeners.clear();
     }
+    addReactChangeListener = this.addListener;
+    removeReactChangeListener = this.removeListener;
 }
-const createSettings = (Data, defaults) => new Settings(Data, defaults);
+const createSettings = (defaults, onLoad) => new SettingsStore(defaults, onLoad);
 
-const Flex = Finder.byName("Flex");
-const Button = Finder.byProps("Link", "Hovers");
-const Form = Finder.byProps("FormItem", "FormSection", "FormDivider");
-const margins = Finder.byProps("marginLarge");
-
-const createPlugin = ({ name, version, styles: css, settings }, callback) => {
-    const Logger = createLogger(name, "#3a71c1", version);
-    const Patcher = createPatcher(name, Logger);
-    const Styles = createStyles(name);
-    const Data = createData(name);
-    const Settings = createSettings(Data, settings ?? {});
-    const plugin = callback({ Logger, Patcher, Styles, Data, Settings });
-    function Wrapper() { }
-    Wrapper.prototype.start = () => {
-        Logger.log("Enabled");
-        Styles.inject(css);
-        plugin.start();
+const createPlugin = (plugin) => (meta) => {
+    setMeta(meta);
+    const { start, stop, styles, Settings, SettingsPanel } = plugin instanceof Function ? plugin(meta) : plugin;
+    Settings?.load();
+    return {
+        start() {
+            log("Enabled");
+            inject(styles);
+            start?.();
+        },
+        stop() {
+            abort();
+            unpatchAll();
+            clear();
+            stop?.();
+            log("Disabled");
+        },
+        getSettingsPanel: SettingsPanel
+            ? () => (React.createElement(SettingsContainer, { name: meta.name, onReset: Settings ? () => Settings.reset() : undefined },
+                React.createElement(SettingsPanel, null)))
+            : undefined,
     };
-    Wrapper.prototype.stop = () => {
-        Patcher.unpatchAll();
-        Styles.clear();
-        const promise = plugin.stop();
-        if (promise) {
-            promise.then(() => Logger.log("Disabled"));
-        }
-        else {
-            Logger.log("Disabled");
-        }
-    };
-    if (plugin.settingsPanel) {
-        const ConnectedSettings = Settings.connect(plugin.settingsPanel);
-        Wrapper.prototype.getSettingsPanel = () => (React.createElement(Form.FormSection, null,
-            React.createElement(ConnectedSettings, null),
-            React.createElement(Form.FormDivider, { className: classNames(margins.marginTop20, margins.marginBottom20) }),
-            React.createElement(Flex, { justify: Flex.Justify.END },
-                React.createElement(Button, { size: Button.Sizes.SMALL, onClick: () => confirm(name, "Reset all settings?", {
-                        onConfirm: () => Settings.reset()
-                    }) }, "Reset"))));
-    }
-    return Wrapper;
 };
 
-const name = "BetterVolume";
-const author = "Zerthox";
-const version = "2.0.0";
-const description = "Set user volume values manually instead of using a limited slider.";
-const config = {
-	name: name,
-	author: author,
-	version: version,
-	description: description
+const Settings = createSettings({
+    volumeOverrides: {},
+    disableExperiment: null,
+});
+const hasOverride = (userId, context) => context in (Settings.current.volumeOverrides[userId] ?? {});
+const updateVolumeOverride = (userId, volume, context) => {
+    const isNew = !hasOverride(userId, context);
+    Settings.update(({ volumeOverrides }) => {
+        volumeOverrides[userId] = { [context]: volume, ...volumeOverrides[userId] };
+        return { volumeOverrides };
+    });
+    return isNew;
 };
-
-const styles = ".container-BetterVolume {\n  margin: 0px 8px;\n  padding: 3px 6px;\n  background: var(--background-primary);\n  border-radius: 3px;\n  display: flex;\n}\n\n.input-BetterVolume {\n  margin-right: 2px;\n  flex-grow: 1;\n  background: transparent;\n  border: none;\n  color: var(--interactive-normal);\n  font-weight: 500;\n}";
-
-const SettingsStore = Finder.byProps("getLocalVolume");
-const ControlItem = Finder.raw.byName("MenuControlItem")?.exports;
-const VolumeInput = ({ value, min = 0, max = 999999, onChange }) => (React.createElement("div", { className: "container-BetterVolume" },
-    React.createElement("input", { type: "number", min: min, max: max, value: Math.round((value + Number.EPSILON) * 100) / 100, onChange: ({ target }) => onChange(Math.min(Math.max(parseFloat(target.value), min), max)), className: "input-BetterVolume" }),
-    React.createElement("span", null, "%")));
-const ConnectedVolumeInput = Flux.connectStores([SettingsStore], ({ control: { value, onChange } }) => ({ value, onChange }))(VolumeInput);
-const index = createPlugin({ ...config, styles }, ({ Logger, Patcher }) => ({
-    start() {
-        Patcher.after(ControlItem, "default", ({ args: [props], result }) => {
-            if (props.id === "user-volume") {
-                const slider = queryTree(result, (node) => node?.props?.maxValue === 200);
-                if (!slider) {
-                    Logger.error("Unable to find slider");
-                    return;
-                }
-                const { props } = result;
-                props.children = [props.children].flat();
-                props.children.push(React.createElement(ConnectedVolumeInput, { control: slider.props }));
-                return result;
+const tryResetVolumeOverride = (userId, context) => {
+    if (hasOverride(userId, context)) {
+        Settings.update(({ volumeOverrides }) => {
+            delete volumeOverrides[userId][context];
+            if (Object.keys(volumeOverrides[userId]).length === 0) {
+                delete volumeOverrides[userId];
             }
+            return { volumeOverrides };
+        });
+        return true;
+    }
+    return false;
+};
+
+const css = ".container-BetterVolume{margin:0 8px;padding:3px 6px;display:flex;background:var(--input-background);border:1px solid var(--input-border-default);border-radius:3px}.input-BetterVolume{margin-right:2px;flex-grow:1;background:rgba(0,0,0,0);border:none}.input-BetterVolume::-webkit-inner-spin-button{appearance:none}.input-BetterVolume:hover::-webkit-inner-spin-button{appearance:auto}.input-BetterVolume,.unit-BetterVolume{color:var(--input-foreground-default);font-family:var(--font-primary);font-weight:500}";
+const styles = {
+    container: "container-BetterVolume",
+    input: "input-BetterVolume",
+    unit: "unit-BetterVolume"
+};
+
+const limit = (input, min, max) => Math.min(Math.max(input, min), max);
+const NumberInput = ({ value, min, max, fallback, onChange }) => {
+    const [isEmpty, setEmpty] = React.useState(false);
+    return (React.createElement("div", { className: styles.container },
+        React.createElement("input", { type: "number", className: styles.input, min: min, max: max, value: !isEmpty ? Math.round((value + Number.EPSILON) * 100) / 100 : "", onChange: ({ target }) => {
+                const value = limit(parseFloat(target.value), min, max);
+                const isNaN = Number.isNaN(value);
+                setEmpty(isNaN);
+                if (!isNaN) {
+                    onChange(value);
+                }
+            }, onBlur: () => {
+                if (isEmpty) {
+                    setEmpty(false);
+                    onChange(fallback);
+                }
+            } }),
+        React.createElement("span", { className: styles.unit }, "%")));
+};
+
+const MAX_VOLUME_PERC = 200;
+const MAX_VOLUME_AMP = AudioConvert.perceptualToAmplitude(MAX_VOLUME_PERC);
+const dispatchVolumeOverrides = () => {
+    log("Dispatching volume overrides");
+    for (const [userId, contexts] of Object.entries(Settings.current.volumeOverrides)) {
+        for (const [context, volume] of Object.entries(contexts)) {
+            Dispatcher.dispatch({
+                type: "AUDIO_SET_LOCAL_VOLUME" ,
+                userId,
+                context,
+                volume,
+            });
+        }
+    }
+};
+const findAudioSettingsManager = () => {
+    const hasSetVolume = byKeys$1("AUDIO_SET_LOCAL_VOLUME" );
+    return find((exported) => exported.actions && hasSetVolume(exported.actions));
+};
+const handleAudioSettingsManager = (AudioSettingsManager) => {
+    originalHandler = AudioSettingsManager.actions["AUDIO_SET_LOCAL_VOLUME" ];
+    const swapped = trySwapHandler("AUDIO_SET_LOCAL_VOLUME" , originalHandler, wrappedSettingsManagerHandler);
+    if (swapped) {
+        log(`Replaced AudioSettingsManager ${"AUDIO_SET_LOCAL_VOLUME" } handler`);
+        dispatchVolumeOverrides();
+        Dispatcher.subscribe("USER_SETTINGS_PROTO_UPDATE" , dispatchVolumeOverrides);
+        log(`Subscribed to ${"USER_SETTINGS_PROTO_UPDATE" } events`);
+    }
+    else {
+        warn(`AudioSettingsManager ${"AUDIO_SET_LOCAL_VOLUME" } handler not present`);
+    }
+};
+const postConnectionOpenHandler = (_action) => {
+    log(`Received ${"POST_CONNECTION_OPEN" }`);
+    const AudioSettingsManager = findAudioSettingsManager();
+    if (AudioSettingsManager) {
+        handleAudioSettingsManager(AudioSettingsManager);
+    }
+    else {
+        warn("Failed to find AudioSettingsManager");
+    }
+};
+let originalHandler;
+const wrappedSettingsManagerHandler = (action) => {
+    const { userId, volume, context } = action;
+    const isOverride = volume > MAX_VOLUME_AMP;
+    if (isOverride) {
+        const isNew = updateVolumeOverride(userId, volume, context);
+        if (isNew) {
+            log(`New volume override ${AudioConvert.amplitudeToPerceptual(volume)} for user ${userId} context ${context}`);
+            originalHandler({ ...action, volume: MAX_VOLUME_AMP });
+        }
+    }
+    else {
+        const wasRemoved = tryResetVolumeOverride(userId, context);
+        if (wasRemoved) {
+            log(`Removed volume override for user ${userId} context ${context}`);
+        }
+        originalHandler(action);
+    }
+};
+const trySwapHandler = (action, prev, next) => {
+    const isPresent = Dispatcher._subscriptions[action].has(prev);
+    if (isPresent) {
+        Dispatcher.unsubscribe(action, prev);
+        Dispatcher.subscribe(action, next);
+    }
+    return isPresent;
+};
+const handleVolumeSync = () => {
+    Dispatcher.subscribe("POST_CONNECTION_OPEN" , postConnectionOpenHandler);
+    log(`Subscribed to ${"POST_CONNECTION_OPEN" } events`);
+    const AudioSettingsManager = findAudioSettingsManager();
+    if (AudioSettingsManager) {
+        handleAudioSettingsManager(AudioSettingsManager);
+    }
+    else {
+        log(`AudioSettingsManager not found, waiting for ${"POST_CONNECTION_OPEN" }`);
+    }
+};
+const resetVolumeSync = () => {
+    Dispatcher.unsubscribe("POST_CONNECTION_OPEN" , postConnectionOpenHandler);
+    log(`Unsubscribed from ${"POST_CONNECTION_OPEN" } events`);
+    Dispatcher.unsubscribe("USER_SETTINGS_PROTO_UPDATE" , dispatchVolumeOverrides);
+    log(`Unsubscribed from ${"USER_SETTINGS_PROTO_UPDATE" } events`);
+    const swapped = trySwapHandler("AUDIO_SET_LOCAL_VOLUME" , wrappedSettingsManagerHandler, originalHandler);
+    if (swapped) {
+        log(`Reset ${"AUDIO_SET_LOCAL_VOLUME" } handler`);
+    }
+};
+
+const useUserVolumeItemFilter = bySource$1("user-volume");
+const index = createPlugin({
+    start() {
+        handleVolumeSync();
+        waitForChecked(useUserVolumeItemFilter, { resolve: false }, (exported) => {
+            const useUserVolumeItem = resolveKey(exported, useUserVolumeItemFilter);
+            after(...useUserVolumeItem, ({ args: [userId, context], result }) => {
+                if (result) {
+                    const volume = MediaEngineStore.getLocalVolume(userId, context);
+                    return (React.createElement(React.Fragment, null,
+                        result,
+                        React.createElement(MenuItem, { id: "user-volume-input", render: () => (React.createElement(NumberInput, { value: AudioConvert.amplitudeToPerceptual(volume), min: 0, max: 999999, fallback: 100, onChange: (value) => MediaEngineActions.setLocalVolume(userId, AudioConvert.perceptualToAmplitude(value), context) })) })));
+                }
+            }, { name: "useUserVolumeItem" });
         });
     },
-    stop() { }
-}));
+    stop() {
+        resetVolumeSync();
+    },
+    styles: css,
+    Settings,
+});
 
 module.exports = index;
 

@@ -1,35 +1,35 @@
 import path from "path";
-import {promises as fs, readdirSync, readFileSync} from "fs";
+import { readdirSync } from "fs";
 import minimist from "minimist";
 import chalk from "chalk";
 import * as rollup from "rollup";
+import styleModules from "rollup-plugin-style-modules";
+import { resolvePkg, readMetaFromPkg } from "bd-meta";
+import bdMeta from "rollup-plugin-bd-meta";
+import bdWScript from "rollup-plugin-bd-wscript";
 import rollupConfig from "../rollup.config";
-import {Config} from "discordium";
-
-const repo = "Zerthox/BetterDiscord-Plugins";
+import { repository } from "../package.json";
 
 const success = (msg: string) => console.log(chalk.green(msg));
 const warn = (msg: string) => console.warn(chalk.yellow(`Warn: ${msg}`));
 const error = (msg: string) => console.error(chalk.red(`Error: ${msg}`));
 
 // find sources
-const sourceFolder = path.resolve(__dirname, "../src");
-const sourceEntries = (readdirSync(sourceFolder, {withFileTypes: true}))
-    .filter((entry) => entry.isDirectory());
-const wscript = readFileSync(path.resolve(__dirname, "wscript.js"), "utf8").split("\n").filter((line) => line.trim().length > 0).join("\n");
+const sourceFolder = path.resolve(import.meta.dirname, "../src");
+const sourceEntries = readdirSync(sourceFolder, { withFileTypes: true }).filter((entry) => entry.isDirectory());
 
 // parse args
-const args = minimist(process.argv.slice(2), {boolean: ["dev", "watch"]});
+const args = minimist(process.argv.slice(2), { boolean: ["dev", "watch"] });
 
 // resolve input paths
-let inputs: string[] = [];
+let inputPaths: string[] = [];
 if (args._.length === 0) {
-    inputs = sourceEntries.map((entry) => path.resolve(sourceFolder, entry.name));
+    inputPaths = sourceEntries.map((entry) => path.resolve(sourceFolder, entry.name));
 } else {
     for (const name of args._) {
         const entry = sourceEntries.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
         if (entry) {
-            inputs.push(path.resolve(sourceFolder, entry.name));
+            inputPaths.push(path.resolve(sourceFolder, entry.name));
         } else {
             warn(`Unknown plugin "${name}"`);
         }
@@ -37,31 +37,35 @@ if (args._.length === 0) {
 }
 
 // check for inputs
-if (inputs.length === 0) {
+if (inputPaths.length === 0) {
     error("No plugin inputs");
     process.exit(1);
 }
 
 // resolve output directory
-const outDir = args.dev ? path.resolve(
-    process.platform === "win32" ? process.env.APPDATA
-        : process.platform === "darwin" ? path.resolve(process.env.HOME, "Library/Preferences")
-            : path.resolve(process.env.HOME, ".config"),
-    "BetterDiscord/plugins"
-) : path.resolve(__dirname, "../dist/bd");
+const outDir = args.dev
+    ? path.resolve(
+          (process.platform === "win32"
+              ? process.env.APPDATA
+              : process.platform === "darwin"
+                ? path.resolve(process.env.HOME as string, "Library/Application Support")
+                : path.resolve(process.env.HOME as string, ".config")) as string,
+          "BetterDiscord/plugins",
+      )
+    : path.resolve(import.meta.dirname, "../dist/bd");
 
 const watchers: Record<string, rollup.RollupWatcher> = {};
 
 // build each input
-for (const input of inputs) {
-    const output = path.resolve(outDir, `${path.basename(input)}.plugin.js`);
+for (const inputPath of inputPaths) {
+    const outputPath = path.resolve(outDir, `${path.basename(inputPath)}.plugin.js`);
 
     if (args.watch) {
         // watch for changes
-        watch(input, output).then(() => console.log(`Watching for changes in "${input}"`));
+        watch(inputPath, outputPath).then(() => console.log(`Watching for changes in "${inputPath}"`));
     } else {
         // build once
-        build(input, output);
+        build(inputPath, outputPath);
     }
 }
 if (args.watch) {
@@ -74,97 +78,89 @@ if (args.watch) {
     });
 }
 
-async function build(input: string, output: string) {
-    // parse config
-    const config = await readConfig(input);
-    const {output: outputConfig, ...inputConfig} = rollupConfig;
+async function build(inputPath: string, outputPath: string): Promise<void> {
+    const meta = await readMetaFromPkg(await resolvePkg(inputPath));
+    const config = generateRollupConfig(meta.name, inputPath, outputPath);
 
     // bundle plugin
-    const bundle = await rollup.rollup({
-        ...inputConfig,
-        input: path.resolve(input, "index.tsx")
-    });
-    await bundle.write({
-        ...outputConfig,
-        ...genOutputOptions(config, output)
-    });
-    success(`Built ${config.name} v${config.version} to "${output}"`);
+    const bundle = await rollup.rollup(config);
+    await bundle.write(config.output);
+    success(`Built ${meta.name} v${meta.version} to "${outputPath}"`);
 
     await bundle.close();
 }
 
-async function watch(input: string, output: string) {
-    const config = await readConfig(input);
-    const {output: outputConfig, ...inputConfig} = rollupConfig;
+async function watch(inputPath: string, outputPath: string): Promise<void> {
+    const pkgPath = await resolvePkg(inputPath);
+    const meta = await readMetaFromPkg(pkgPath);
+    const { plugins, ...config } = generateRollupConfig(meta.name, inputPath, outputPath);
 
     // start watching
     const watcher = rollup.watch({
-        ...inputConfig,
-        input: path.resolve(input, "index.tsx"),
-        output: {
-            ...outputConfig,
-            ...genOutputOptions(config, output)
-        }
+        ...config,
+        plugins: [
+            plugins,
+            {
+                name: "package-watcher",
+                buildStart() {
+                    this.addWatchFile(pkgPath);
+                },
+            },
+        ],
     });
 
     // close finished bundles
     watcher.on("event", (event) => {
         if (event.code === "BUNDLE_END") {
-            success(`Built ${config.name} v${config.version} to "${output}" [${event.duration}ms]`);
+            success(`Built ${meta.name} v${meta.version} to "${outputPath}" [${event.duration}ms]`);
             event.result.close();
         }
     });
 
     // restart on config changes
-    const configPath = resolveConfig(input);
     watcher.on("change", (file) => {
         // check for config changes
-        if (file === configPath) {
-            watchers[input].close();
-            watch(input, output);
+        if (file === pkgPath) {
+            watchers[inputPath].close();
+            watch(inputPath, outputPath);
         }
 
         console.log(`=> Changed "${file}"`);
     });
 
-    watchers[input] = watcher;
+    watchers[inputPath] = watcher;
 }
 
-interface Meta extends Config<unknown> {
-    authorLink?: string;
-    updateUrl?: string;
-    website?: string;
-    source?: string;
-    donate?: string;
+interface RollupConfig extends Omit<rollup.RollupOptions, "output"> {
+    output: rollup.OutputOptions;
 }
 
-function resolveConfig(input: string): string {
-    return path.resolve(input, "config.json");
-}
+function generateRollupConfig(name: string, inputPath: string, outputPath: string): RollupConfig {
+    const { output, plugins, ...rest } = rollupConfig;
 
-async function readConfig(input: string): Promise<Meta> {
-    const config = JSON.parse(await fs.readFile(resolveConfig(input), "utf8")) as Config<unknown>;
     return {
-        ...config,
-        authorLink: `https://github.com/${config.author}`,
-        website: `https://github.com/${repo}`,
-        source: `https://github.com/${repo}/tree/master/src/${path.basename(input)}`,
-        updateUrl: `https://raw.githubusercontent.com/${repo}/master/dist/bd/${path.basename(input)}.plugin.js`
-    };
-}
-
-function toMeta(config: Config<unknown>): string {
-    let result = "/**";
-    for (const [key, value] of Object.entries(config)) {
-        result += `\n * @${key} ${value.replace(/\n/g, "\\n")}`;
-    }
-    return result + "\n**/\n";
-}
-
-function genOutputOptions(config: Config<unknown>, output: string) {
-    return {
-        file: output,
-        banner: toMeta(config) + `\n/*@cc_on @if (@_jscript)\n${wscript}\n@else @*/\n`,
-        footer: "\n/*@end @*/"
+        ...rest,
+        input: path.resolve(inputPath, "index.tsx"),
+        plugins: [
+            plugins,
+            styleModules({
+                modules: {
+                    generateScopedName: `[local]-${name}`,
+                },
+                cleanup: true,
+            }),
+            bdMeta({
+                meta: {
+                    website: repository,
+                    source: `${repository}/tree/master/src/${path.basename(inputPath)}`,
+                },
+                authorGithub: true,
+            }),
+            bdWScript(),
+        ],
+        output: {
+            ...output,
+            file: outputPath,
+        },
     };
 }
